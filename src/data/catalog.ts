@@ -1,0 +1,126 @@
+export type Category =
+  | "GPU"
+  | "CPU"
+  | "Motherboard"
+  | "Monitor"
+  | "Storage"
+  | "Laptops"
+  | "Accessories"
+  | "Services";
+
+export type Item = {
+  id: string;
+  name: string;
+  description: string;
+  category: Category;
+  price: number;
+  stock: number;
+  badge?: string;
+  image?: string; // This can be undefined if no image is provided
+  icon?: string;
+};
+
+export const CATEGORIES: (Category | "All")[] = [
+  "All",
+  "GPU",
+  "CPU",
+  "Motherboard",
+  "Monitor",
+  "Storage",
+  "Laptops",
+  "Accessories",
+  "Services",
+];
+
+export const CATALOG: Item[] = [
+  {
+    id: "gpu-4060",
+    name: "RTX 4060 8GB",
+    category: "GPU",
+    price: 18995,
+    stock: 7,
+    badge: "Best Seller",
+    description: "Smooth 1080p gaming + creator workloads. Great value GPU.",
+    icon: "🖥️",
+  },
+  {
+    id: "cpu-ryzen-5600",
+    name: "Ryzen 5 5600",
+    description: "6-core CPU for gaming and productivity.",
+    category: "CPU",
+    price: 6495,
+    stock: 12,
+    badge: "Budget King",
+    icon: "🧠",
+  },
+
+  // ✅ FIXED: SSD belongs to Storage (not CPU)
+  {
+    id: "ssd-1tb",
+    name: "NVMe SSD 1TB",
+    category: "Storage",
+    price: 3495,
+    stock: 20,
+    description: "Fast boot, fast load. PCIe NVMe storage.",
+    icon: "⚡",
+  },
+
+  {
+    id: "laptop-ideapad",
+    name: "Lenovo IdeaPad 15 (i5 / 16GB / 512GB)",
+    category: "Laptops",
+    price: 35995,
+    stock: 4,
+    badge: "Work & Study",
+    description: "Reliable daily laptop for school/work. Great battery life.",
+    icon: "💻",
+  },
+  {
+    id: "laptop-gaming",
+    name: "Gaming Laptop 15 (RTX / 144Hz)",
+    category: "Laptops",
+    price: 62995,
+    stock: 2,
+    badge: "Hot Deal",
+    description: "High refresh display + dedicated GPU for gaming/creator use.",
+    icon: "🎮",
+  },
+  {
+    id: "mouse",
+    name: "Wireless Mouse",
+    category: "Accessories",
+    price: 599,
+    stock: 30,
+    description: "Quiet clicks, ergonomic grip, long battery life.",
+    icon: "🖱️",
+  },
+  {
+    id: "kb",
+    name: "Mechanical Keyboard",
+    category: "Accessories",
+    price: 1499,
+    stock: 15,
+    description: "Tactile switches, durable build, clean aesthetic.",
+    icon: "⌨️",
+  },
+  {
+    id: "svc-cctv",
+    name: "CCTV Installation (Package Quote)",
+    description: "Site visit + recommendation + installation + app setup.",
+    category: "Services",
+    price: 0,
+    stock: 0,
+    badge: "Quote",
+    icon: "📷",
+  },
+  {
+    id: "svc-repair",
+    name: "Laptop/PC Repair (Diagnostics)",
+    description: "Basic diagnostics & troubleshooting. Repair quote after check.",
+    category: "Services",
+    price: 0,
+    stock: 0,
+    badge: "Same Day",
+    icon: "🛠️",
+  },
+];
