@@ -11,7 +11,7 @@ type CategoryOption = {
 export default function HeaderBar({
   query,
   setQuery,
-  activeCategory = "all", // now expects slug or "all"
+  activeCategory = "all", // slug or "all"
   cartCount = 0,
   onOpenCart,
 }: {
@@ -19,7 +19,6 @@ export default function HeaderBar({
   setQuery: (v: string) => void;
 
   /**
-   * ✅ IMPORTANT CHANGE:
    * pass category slug here (ex: "cpu", "gpu", "storage-ssd-hdd-nvme")
    * or "all"
    */
@@ -37,17 +36,15 @@ export default function HeaderBar({
   async function loadCategories() {
     setCatsLoading(true);
     try {
-      const data = await fetchCategories(); // active categories
+      const data = await fetchCategories();
       setCats(data);
     } catch {
-      // silently fail (dropdown still works with "All")
       setCats([]);
     } finally {
       setCatsLoading(false);
     }
   }
 
-  // initial load
   useEffect(() => {
     loadCategories();
   }, []);
@@ -56,16 +53,13 @@ export default function HeaderBar({
   useEffect(() => {
     const refetch = () => loadCategories();
 
-    // same tab (custom event)
     window.addEventListener("kjk:categories-updated", refetch);
 
-    // other tabs (localStorage)
     const onStorage = (e: StorageEvent) => {
       if (e.key === "kjk_categories_refresh_v1") refetch();
     };
     window.addEventListener("storage", onStorage);
 
-    // BroadcastChannel (more reliable)
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel("kjk_categories_channel_v1");
@@ -85,19 +79,16 @@ export default function HeaderBar({
 
   const options = useMemo<CategoryOption[]>(() => {
     const base: CategoryOption[] = [{ value: "all", label: "All" }];
-
-    // show all active categories
     const fromDb = cats.map((c) => ({
-      value: c.slug, // ✅ slug used for routing
-      label: c.label, // ✅ label shown in dropdown
+      value: c.slug,
+      label: c.label,
     }));
-
     return base.concat(fromDb);
   }, [cats]);
 
   function goToCategory(value: string) {
     if (value === "all") nav("/");
-    else nav(`/category/${encodeURIComponent(value)}`); // value = slug
+    else nav(`/category/${encodeURIComponent(value)}`);
   }
 
   function scrollToFooter() {
@@ -132,28 +123,17 @@ export default function HeaderBar({
             </div>
           </button>
 
-          {/* Search */}
-          <div className="flex-1">
-            <div className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-4">
-              <span className="text-black/35">🔎</span>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search GPU, laptop, CCTV…"
-                className="w-full bg-transparent py-3 text-sm outline-none"
-              />
-            </div>
-          </div>
+          {/* ✅ Spacer (keeps layout balanced like your screenshot) */}
+          <div className="flex-1" />
 
           {/* Category */}
           <select
             value={activeCategory}
             onChange={(e) => goToCategory(e.target.value)}
-            className="shrink-0 w-[200px] rounded-2xl border border-black/10 bg-white px-3 py-3 text-sm font-medium outline-none hover:bg-black/5"
+            className="shrink-0 w-[240px] rounded-2xl border border-black/10 bg-white px-3 py-3 text-sm font-medium outline-none hover:bg-black/5"
             aria-label="Choose category"
           >
             {catsLoading ? <option value="all">Loading…</option> : null}
-
             {options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -186,14 +166,7 @@ export default function HeaderBar({
             Contact
           </button>
 
-          {/* Login */}
-          <button
-            onClick={() => nav("/login")}
-            type="button"
-            className="shrink-0 rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
-          >
-            Login
-          </button>
+          {/* ✅ REMOVED LOGIN BUTTON */}
         </div>
 
         {/* ✅ MOBILE/TABLET */}
@@ -230,13 +203,7 @@ export default function HeaderBar({
                 ) : null}
               </button>
 
-              <button
-                onClick={() => nav("/login")}
-                type="button"
-                className="rounded-2xl bg-black px-3 py-2 text-[13px] font-semibold text-white hover:opacity-90"
-              >
-                Login
-              </button>
+              {/* ✅ REMOVED LOGIN BUTTON ON MOBILE TOO */}
             </div>
           </div>
 
@@ -260,7 +227,6 @@ export default function HeaderBar({
               aria-label="Choose category"
             >
               {catsLoading ? <option value="all">Loading…</option> : null}
-
               {options.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
