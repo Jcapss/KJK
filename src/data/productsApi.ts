@@ -42,11 +42,31 @@ function normalizeBrandLabel(raw: string) {
     .join(" ");
 }
 
+/** ✅ helper: apply category filter that supports string OR string[] */
+function applyCategoryFilter<T extends ReturnType<typeof supabase.from>>(
+  query: any,
+  category?: string | string[]
+) {
+  const catArg = category;
+
+  if (Array.isArray(catArg)) {
+    const cats = catArg
+      .map((c) => String(c ?? "").trim().toLowerCase())
+      .filter(Boolean);
+    if (cats.length) return query.in("category_slug", cats);
+    return query;
+  }
+
+  const cat = String(catArg ?? "").trim().toLowerCase();
+  if (cat) return query.eq("category_slug", cat);
+  return query;
+}
+
 export async function fetchProducts(args?: {
-  category?: string;
+  category?: string | string[]; // ✅ allow array (laptop/laptops)
   q?: string;
   brands?: string[]; // chip/general brand checkbox list
-  partnerBrand?: string; // ✅ NEW dropdown for GPU/Mobo
+  partnerBrand?: string; // dropdown for GPU/Mobo
 }): Promise<ProductRow[]> {
   let query = supabase
     .from("products")
@@ -56,31 +76,26 @@ export async function fetchProducts(args?: {
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
-  const cat = args?.category?.trim();
-  if (cat) query = query.eq("category_slug", cat);
+  // ✅ category filter (supports array)
+  query = applyCategoryFilter(query, args?.category);
 
+  // ✅ search (keep your original behavior: name only)
   const q = args?.q?.trim();
   if (q) query = query.ilike("name", `%${q}%`);
 
-  // ✅ Case-insensitive brand filter
+  // ✅ Case-insensitive brand filter (your original logic)
   const brands = (args?.brands ?? [])
     .map((b) => String(b ?? "").trim())
     .filter(Boolean);
 
   if (brands.length > 0) {
-    // OR together: brand ILIKE 'AMD' OR brand ILIKE 'Intel'
-    const orStr = brands
-      .map((b) => `brand.ilike.${escOrValue(b)}`)
-      .join(",");
+    const orStr = brands.map((b) => `brand.ilike.${escOrValue(b)}`).join(",");
     query = query.or(orStr);
   }
 
-  // ✅ Partner brand filter (GPU/Mobo dropdown)
+  // ✅ Partner brand filter (ILIKE without % = exact match ignoring case)
   const pb = args?.partnerBrand?.trim();
-  if (pb) {
-    // exact match ignoring case (ILIKE without %)
-    query = query.ilike("partner_brand", pb);
-  }
+  if (pb) query = query.ilike("partner_brand", pb);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -104,15 +119,17 @@ export async function fetchProductById(id: string): Promise<ProductRow | null> {
 /**
  * ✅ Get distinct chip/general brands for checkbox list (dedup case-insensitive)
  */
-export async function fetchBrands(args?: { category?: string }): Promise<string[]> {
+export async function fetchBrands(args?: {
+  category?: string | string[];
+}): Promise<string[]> {
   let q = supabase
     .from("products")
     .select("brand")
     .eq("is_active", true)
     .not("brand", "is", null);
 
-  const cat = args?.category?.trim();
-  if (cat) q = q.eq("category_slug", cat);
+  // ✅ category filter (supports array)
+  q = applyCategoryFilter(q, args?.category);
 
   const { data, error } = await q;
   if (error) throw error;
@@ -132,17 +149,19 @@ export async function fetchBrands(args?: { category?: string }): Promise<string[
 }
 
 /**
- * ✅ NEW: Get distinct partner brands for dropdown (GPU/Mobo)
+ * ✅ Get distinct partner brands for dropdown (GPU/Mobo)
  */
-export async function fetchPartnerBrands(args?: { category?: string }): Promise<string[]> {
+export async function fetchPartnerBrands(args?: {
+  category?: string | string[];
+}): Promise<string[]> {
   let q = supabase
     .from("products")
     .select("partner_brand")
     .eq("is_active", true)
     .not("partner_brand", "is", null);
 
-  const cat = args?.category?.trim();
-  if (cat) q = q.eq("category_slug", cat);
+  // ✅ category filter (supports array)
+  q = applyCategoryFilter(q, args?.category);
 
   const { data, error } = await q;
   if (error) throw error;

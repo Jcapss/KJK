@@ -9,24 +9,49 @@ import type { BannerRow } from "../data/bannersApi";
 import { uploadBannerImage } from "../data/bannerStorage";
 import AdminLayout from "../components/AdminLayout";
 
+type Align = "left" | "center" | "right";
+
 type FormState = {
   title: string;
   subtitle: string;
+  note_text: string;
+
   cta_text: string;
   cta_href: string;
+
   sort_order: number;
   is_active: boolean;
   image_url: string;
+
+  overlay_strength: number; // 0-80
+  align: Align;
+  show_fb_buttons: boolean;
+
+  // ✅ per-text colors
+  title_color: string;
+  subtitle_color: string;
+  note_color: string;
 };
 
 const emptyForm: FormState = {
   title: "",
   subtitle: "",
+  note_text: "Follow us on Facebook for promos & new arrivals.",
+
   cta_text: "",
   cta_href: "",
+
   sort_order: 0,
   is_active: true,
   image_url: "",
+
+  overlay_strength: 35,
+  align: "left",
+  show_fb_buttons: true,
+
+  title_color: "#FFFFFF",
+  subtitle_color: "#E5E7EB",
+  note_color: "#D1D5DB",
 };
 
 export default function AdminBannersPage() {
@@ -71,12 +96,24 @@ export default function AdminBannersPage() {
     setForm({
       title: r.title,
       subtitle: r.subtitle ?? "",
+      note_text: r.note_text ?? "Follow us on Facebook for promos & new arrivals.",
+
       cta_text: r.cta_text ?? "",
       cta_href: r.cta_href ?? "",
+
       sort_order: r.sort_order,
       is_active: r.is_active,
       image_url: r.image_url,
+
+      overlay_strength: Number.isFinite(r.overlay_strength) ? Number(r.overlay_strength) : 35,
+      align: (r.align ?? "left") as Align,
+      show_fb_buttons: r.show_fb_buttons ?? true,
+
+      title_color: r.title_color ?? "#FFFFFF",
+      subtitle_color: r.subtitle_color ?? "#E5E7EB",
+      note_color: r.note_color ?? "#D1D5DB",
     });
+
     setImgPreview(r.image_url);
     setOpen(true);
   }
@@ -96,41 +133,58 @@ export default function AdminBannersPage() {
   }
 
   async function onSave() {
-    if (!form.title.trim()) return alert("Title is required.");
-    if (!form.image_url.trim()) return alert("Image is required.");
+  if (!form.title.trim()) return alert("Title is required.");
+  if (!form.image_url.trim()) return alert("Image is required.");
 
-    setSaving(true);
-    try {
-      if (editing) {
-        await adminUpdateBanner(editing.id, {
-          title: form.title,
-          subtitle: form.subtitle || null,
-          cta_text: form.cta_text || null,
-          cta_href: form.cta_href || null,
-          image_url: form.image_url,
-          sort_order: form.sort_order,
-          is_active: form.is_active,
-        });
-      } else {
-        await adminCreateBanner({
-          title: form.title,
-          subtitle: form.subtitle || null,
-          cta_text: form.cta_text || null,
-          cta_href: form.cta_href || null,
-          image_url: form.image_url,
-          sort_order: form.sort_order,
-          is_active: form.is_active,
-        });
-      }
+  const overlay = Math.max(0, Math.min(80, Number(form.overlay_strength || 0)));
 
-      setOpen(false);
-      await refresh();
-    } catch (e: any) {
-      alert(e?.message ?? "Save failed");
-    } finally {
-      setSaving(false);
+  setSaving(true);
+  try {
+    const payload = {
+      title: form.title,
+      subtitle: form.subtitle || null,
+      note_text: form.note_text || null,
+
+      cta_text: form.cta_text || null,
+      cta_href: form.cta_href || null,
+
+      image_url: form.image_url,
+      sort_order: form.sort_order,
+      is_active: form.is_active,
+
+      overlay_strength: overlay,
+      align: form.align,
+      show_fb_buttons: form.show_fb_buttons,
+
+      // ✅ per-text colors
+      title_color: form.title_color,
+      subtitle_color: form.subtitle_color,
+      note_color: form.note_color,
+    };
+
+    if (editing) {
+      await adminUpdateBanner(editing.id, payload as any);
+    } else {
+      await adminCreateBanner(payload as any);
     }
+
+    // ✅ tell HomePage to re-fetch banners (same tab + other tabs)
+    localStorage.setItem("kjk_banners_refresh_v1", String(Date.now()));
+    window.dispatchEvent(new Event("kjk:banners-updated"));
+    try {
+      const bc = new BroadcastChannel("kjk_banners_channel_v1");
+      bc.postMessage({ type: "BANNERS_UPDATED" });
+      bc.close();
+    } catch {}
+
+    setOpen(false);
+    await refresh();
+  } catch (e: any) {
+    alert(e?.message ?? "Save failed");
+  } finally {
+    setSaving(false);
   }
+}
 
   async function onDelete(r: BannerRow) {
     const ok = confirm(`Delete banner: "${r.title}"?`);
@@ -146,7 +200,7 @@ export default function AdminBannersPage() {
 
   async function toggleActive(r: BannerRow) {
     try {
-      await adminUpdateBanner(r.id, { is_active: !r.is_active });
+      await adminUpdateBanner(r.id, { is_active: !r.is_active } as any);
       await refresh();
     } catch (e: any) {
       alert(e?.message ?? "Update failed");
@@ -159,9 +213,7 @@ export default function AdminBannersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Hero Banners</h1>
-            <p className="text-sm text-gray-500">
-              Manage homepage slider images and text.
-            </p>
+            <p className="text-sm text-gray-500">Manage homepage slider images and text.</p>
           </div>
 
           <button
@@ -193,8 +245,7 @@ export default function AdminBannersPage() {
                     <div>
                       <div className="font-semibold">{r.title}</div>
                       <div className="text-xs text-gray-500">
-                        Order: {r.sort_order} •{" "}
-                        {r.is_active ? "Active" : "Inactive"}
+                        Order: {r.sort_order} • {r.is_active ? "Active" : "Inactive"}
                       </div>
                     </div>
                   </div>
@@ -229,102 +280,240 @@ export default function AdminBannersPage() {
 
         {open && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl">
-              <h2 className="text-lg font-bold mb-4">
-                {editing ? "Edit Banner" : "Add Banner"}
-              </h2>
+            <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-xl">
+              <h2 className="text-lg font-bold mb-4">{editing ? "Edit Banner" : "Add Banner"}</h2>
 
-              <div className="grid gap-3">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => onPickImage(e.target.files?.[0])}
-                />
-
-                {imgPreview && (
-                  <img
-                    src={imgPreview}
-                    className="h-32 w-full object-cover rounded"
-                  />
-                )}
-
-                <input
-                  placeholder="Title"
-                  value={form.title}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, title: e.target.value }))
-                  }
-                  className="border rounded px-3 py-2"
-                />
-
-                <input
-                  placeholder="Subtitle"
-                  value={form.subtitle}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, subtitle: e.target.value }))
-                  }
-                  className="border rounded px-3 py-2"
-                />
-
-                <input
-                  placeholder="CTA Text"
-                  value={form.cta_text}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, cta_text: e.target.value }))
-                  }
-                  className="border rounded px-3 py-2"
-                />
-
-                <input
-                  placeholder="CTA Link"
-                  value={form.cta_href}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, cta_href: e.target.value }))
-                  }
-                  className="border rounded px-3 py-2"
-                />
-
-                <input
-                  type="number"
-                  placeholder="Sort Order"
-                  value={form.sort_order}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      sort_order: Number(e.target.value),
-                    }))
-                  }
-                  className="border rounded px-3 py-2"
-                />
-
-                <label className="flex items-center gap-2 text-sm">
+              <div className="grid gap-5 md:grid-cols-[1fr_1fr]">
+                {/* FORM */}
+                <div className="grid gap-3">
                   <input
-                    type="checkbox"
-                    checked={form.is_active}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        is_active: e.target.checked,
-                      }))
-                    }
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => onPickImage(e.target.files?.[0])}
                   />
-                  Active
-                </label>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    onClick={() => setOpen(false)}
-                    className="border rounded px-4 py-2 text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={onSave}
-                    disabled={saving || imgUploading}
-                    className="bg-black text-white rounded px-4 py-2 text-sm"
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
+                  {imgPreview && (
+                    <img src={imgPreview} className="h-32 w-full object-cover rounded border" />
+                  )}
+
+                  <input
+                    placeholder="Title"
+                    value={form.title}
+                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                    className="border rounded px-3 py-2"
+                  />
+
+                  <input
+                    placeholder="Subtitle"
+                    value={form.subtitle}
+                    onChange={(e) => setForm((p) => ({ ...p, subtitle: e.target.value }))}
+                    className="border rounded px-3 py-2"
+                  />
+
+                  <input
+                    placeholder='Note text (ex: "Follow us on Facebook...")'
+                    value={form.note_text}
+                    onChange={(e) => setForm((p) => ({ ...p, note_text: e.target.value }))}
+                    className="border rounded px-3 py-2"
+                  />
+
+                  <input
+                    placeholder="CTA Text"
+                    value={form.cta_text}
+                    onChange={(e) => setForm((p) => ({ ...p, cta_text: e.target.value }))}
+                    className="border rounded px-3 py-2"
+                  />
+
+                  <input
+                    placeholder="CTA Link"
+                    value={form.cta_href}
+                    onChange={(e) => setForm((p) => ({ ...p, cta_href: e.target.value }))}
+                    className="border rounded px-3 py-2"
+                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="number"
+                      placeholder="Sort Order"
+                      value={form.sort_order}
+                      onChange={(e) => setForm((p) => ({ ...p, sort_order: Number(e.target.value) }))}
+                      className="border rounded px-3 py-2"
+                    />
+
+                    <select
+                      value={form.align}
+                      onChange={(e) => setForm((p) => ({ ...p, align: e.target.value as Align }))}
+                      className="border rounded px-3 py-2"
+                    >
+                      <option value="left">Align: Left</option>
+                      <option value="center">Align: Center</option>
+                      <option value="right">Align: Right</option>
+                    </select>
+                  </div>
+
+                  {/* ✅ per-text colors */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <label className="text-sm">
+                      <div className="mb-1 text-xs text-gray-500">Title Color</div>
+                      <input
+                        type="color"
+                        value={form.title_color}
+                        onChange={(e) => setForm((p) => ({ ...p, title_color: e.target.value }))}
+                        className="h-10 w-full rounded border"
+                      />
+                    </label>
+
+                    <label className="text-sm">
+                      <div className="mb-1 text-xs text-gray-500">Subtitle Color</div>
+                      <input
+                        type="color"
+                        value={form.subtitle_color}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, subtitle_color: e.target.value }))
+                        }
+                        className="h-10 w-full rounded border"
+                      />
+                    </label>
+
+                    <label className="text-sm">
+                      <div className="mb-1 text-xs text-gray-500">Note Color</div>
+                      <input
+                        type="color"
+                        value={form.note_color}
+                        onChange={(e) => setForm((p) => ({ ...p, note_color: e.target.value }))}
+                        className="h-10 w-full rounded border"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="text-sm">
+                    <div className="mb-1 text-xs text-gray-500">
+                      Overlay Strength ({form.overlay_strength})
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={80}
+                      value={form.overlay_strength}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, overlay_strength: Number(e.target.value) }))
+                      }
+                      className="w-full"
+                    />
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form.show_fb_buttons}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, show_fb_buttons: e.target.checked }))
+                      }
+                    />
+                    Show Facebook buttons
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form.is_active}
+                      onChange={(e) => setForm((p) => ({ ...p, is_active: e.target.checked }))}
+                    />
+                    Active
+                  </label>
+
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button onClick={() => setOpen(false)} className="border rounded px-4 py-2 text-sm">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={onSave}
+                      disabled={saving || imgUploading}
+                      className="bg-black text-white rounded px-4 py-2 text-sm"
+                    >
+                      {saving ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* LIVE PREVIEW */}
+                <div className="rounded-xl border overflow-hidden">
+                  <div className="relative h-56 bg-black">
+                    {imgPreview ? (
+                      <>
+                        <img
+                          src={imgPreview}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover opacity-90"
+                        />
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            background: `rgba(0,0,0,${
+                              Math.min(80, Math.max(0, form.overlay_strength)) / 100
+                            })`,
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 grid place-items-center text-white/70 text-sm">
+                        Upload an image to preview
+                      </div>
+                    )}
+
+                    <div
+                      className={[
+                        "absolute inset-0 flex p-4",
+                        form.align === "center"
+                          ? "items-center justify-center text-center"
+                          : form.align === "right"
+                          ? "items-center justify-end text-right"
+                          : "items-center justify-start text-left",
+                      ].join(" ")}
+                    >
+                      <div className="max-w-[90%]">
+                        <div
+                          className="text-2xl font-black leading-tight"
+                          style={{ color: form.title_color }}
+                        >
+                          {form.title || "Banner Title"}
+                        </div>
+
+                        {form.subtitle ? (
+                          <div className="mt-1 text-sm" style={{ color: form.subtitle_color }}>
+                            {form.subtitle}
+                          </div>
+                        ) : null}
+
+                        {form.note_text ? (
+                          <div className="mt-2 text-xs" style={{ color: form.note_color }}>
+                            {form.note_text}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {form.cta_text && form.cta_href ? (
+                            <div className="rounded-md bg-red-600 px-4 py-2 text-xs font-semibold text-white">
+                              {form.cta_text}
+                            </div>
+                          ) : null}
+
+                          {form.show_fb_buttons ? (
+                            <>
+                              <div className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-xs font-semibold text-white">
+                                Message on Facebook
+                              </div>
+                              <div className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-xs font-semibold text-white">
+                                Like our Page
+                              </div>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 text-xs text-gray-500">Live preview</div>
                 </div>
               </div>
             </div>

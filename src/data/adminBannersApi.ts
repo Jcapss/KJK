@@ -1,63 +1,95 @@
-import { supabase } from "../lib/supabase"; // change if needed
-import type { BannerRow } from "./bannersApi";
-
-export type BannerInsert = {
-  title: string;
-  subtitle?: string | null;
-  cta_text?: string | null;
-  cta_href?: string | null;
-  image_url: string;
-  sort_order?: number;
-  is_active?: boolean;
-};
+// src/data/adminBannersApi.ts
+import { supabase } from "../lib/supabase";
+import type { BannerRow, BannerAlign } from "./bannersApi";
 
 export async function adminListBanners(): Promise<BannerRow[]> {
   const { data, error } = await supabase
     .from("hero_banners")
-    .select("*")
+    .select(
+      `
+      id,title,subtitle,note_text,
+      cta_text,cta_href,
+      image_url,sort_order,is_active,created_at,
+      overlay_strength,align,show_fb_buttons,
+      title_color,subtitle_color,note_color
+    `
+    )
     .order("sort_order", { ascending: true });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as BannerRow[];
 }
 
-export async function adminCreateBanner(payload: BannerInsert) {
+export async function adminCreateBanner(payload: {
+  title: string;
+  subtitle?: string | null;
+  note_text?: string | null;
+
+  cta_text?: string | null;
+  cta_href?: string | null;
+
+  image_url: string;
+  sort_order: number;
+  is_active: boolean;
+
+  overlay_strength?: number;
+  align?: BannerAlign;
+  show_fb_buttons?: boolean;
+
+  title_color?: string;
+  subtitle_color?: string;
+  note_color?: string;
+}): Promise<BannerRow> {
   const { data, error } = await supabase
     .from("hero_banners")
-    .insert({
-      title: payload.title,
-      subtitle: payload.subtitle ?? null,
-      cta_text: payload.cta_text ?? null,
-      cta_href: payload.cta_href ?? null,
-      image_url: payload.image_url,
-      sort_order: payload.sort_order ?? 0,
-      is_active: payload.is_active ?? true,
-    })
-    .select("*")
+    .insert([
+      {
+        ...payload,
+      },
+    ])
+    .select(
+      `
+      id,title,subtitle,note_text,
+      cta_text,cta_href,
+      image_url,sort_order,is_active,created_at,
+      overlay_strength,align,show_fb_buttons,
+      title_color,subtitle_color,note_color
+    `
+    )
     .single();
 
   if (error) throw error;
-  return data;
+  return data as BannerRow;
 }
 
-export async function adminUpdateBanner(id: string, patch: Partial<BannerInsert>) {
-  const { data, error } = await supabase
-    .from("hero_banners")
-    .update({
-      ...patch,
-      subtitle: patch.subtitle ?? undefined,
-      cta_text: patch.cta_text ?? undefined,
-      cta_href: patch.cta_href ?? undefined,
-    })
-    .eq("id", id)
-    .select("*")
-    .single();
+export async function adminUpdateBanner(
+  id: string,
+  patch: Partial<{
+    title: string;
+    subtitle: string | null;
+    note_text: string | null;
 
+    cta_text: string | null;
+    cta_href: string | null;
+
+    image_url: string;
+    sort_order: number;
+    is_active: boolean;
+
+    overlay_strength: number;
+    align: BannerAlign;
+    show_fb_buttons: boolean;
+
+    title_color: string;
+    subtitle_color: string;
+    note_color: string;
+  }>
+): Promise<void> {
+  const { error } = await supabase.from("hero_banners").update(patch).eq("id", id);
   if (error) throw error;
-  return data;
 }
 
-export async function adminDeleteBanner(id: string) {
+export async function adminDeleteBanner(id: string): Promise<void> {
   const { error } = await supabase.from("hero_banners").delete().eq("id", id);
   if (error) throw error;
 }

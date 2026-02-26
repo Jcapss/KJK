@@ -90,6 +90,11 @@ export default function AdminProductsPage() {
     return list;
   }, [products, search, activeOnly]);
 
+  function priceLabel(v: number | string) {
+    const n = Number(v ?? 0);
+    return `₱${Number.isFinite(n) ? n.toLocaleString() : "0"}`;
+  }
+
   return (
     <AdminLayout>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -145,7 +150,93 @@ export default function AdminProductsPage() {
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-black/10 bg-white">
+      {/* ✅ MOBILE: Cards */}
+      <div className="mt-5 grid gap-3 md:hidden">
+        {loading ? (
+          <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
+            Loading products...
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
+            No products found.
+          </div>
+        ) : (
+          filteredProducts.map((p) => (
+            <div
+              key={p.id}
+              className="rounded-2xl border border-black/10 bg-white p-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-black/5">
+                  {p.image_url ? (
+                    <img
+                      src={p.image_url}
+                      alt={p.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center text-xl">
+                      📦
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold leading-tight">{p.name}</div>
+                      <div className="mt-1 text-xs text-black/60 line-clamp-2">
+                        {p.description}
+                      </div>
+                    </div>
+
+                    <span
+                      className={[
+                        "shrink-0 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                        p.is_active
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600",
+                      ].join(" ")}
+                    >
+                      {p.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="rounded-xl bg-black/5 px-3 py-1 text-xs font-semibold text-black/70">
+                      {String(p.category_slug)}
+                    </span>
+                    <span className="font-semibold">{priceLabel(p.price)}</span>
+                    <span className="text-black/60">Stock: {p.stock ?? 0}</span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleEditProduct(p.id)}
+                      className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold hover:bg-black/5"
+                      type="button"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      disabled={deletingId === p.id}
+                      onClick={() => handleDeleteProduct(p.id)}
+                      className="rounded-xl border border-red-500/20 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                      type="button"
+                    >
+                      {deletingId === p.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ✅ DESKTOP: Table */}
+      <div className="mt-5 hidden md:block overflow-hidden rounded-2xl border border-black/10 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-black/5 text-xs uppercase text-black/60">
@@ -177,7 +268,6 @@ export default function AdminProductsPage() {
                   <tr key={p.id} className="border-t border-black/10">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        {/* ✅ Image replaces emoji icon */}
                         <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-xl bg-black/5">
                           {p.image_url ? (
                             <img
@@ -201,9 +291,7 @@ export default function AdminProductsPage() {
 
                     <td className="px-4 py-3 text-black/70">{p.category_slug}</td>
 
-                    <td className="px-4 py-3 font-semibold">
-                      ₱{Number(p.price).toLocaleString()}
-                    </td>
+                    <td className="px-4 py-3 font-semibold">{priceLabel(p.price)}</td>
 
                     <td className="px-4 py-3">{p.stock ?? 0}</td>
 

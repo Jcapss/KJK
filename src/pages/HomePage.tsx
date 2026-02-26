@@ -1,19 +1,27 @@
+// src/pages/HomePage.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import HeroSlider from "../components/HeroSlider";
-import type { HeroSlide } from "../components/HeroSlider"; // ✅ add
+import type { HeroSlide } from "../components/HeroSlider";
 import BrowseCategories from "../components/BrowseCategories";
 import HeaderBar from "../components/HeaderBar";
 import CartDrawer, { type CartLine } from "../components/CartDrawer";
 
 import { fetchProducts } from "../data/productsApi";
 import type { ProductRow } from "../types/db";
-
-// ✅ NEW: fetch banners from DB
 import { fetchActiveBanners } from "../data/bannersApi";
 
+type ItemLike = {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+};
+
 const CART_KEY = "kjk_cart_v1";
+const CART_ITEMS_KEY = "kjk_cart_items_v1";
+const BANNERS_REFRESH_KEY = "kjk_banners_refresh_v1";
+const BANNERS_BC_NAME = "kjk_banners_channel_v1";
 
 function safeParseCart(raw: string | null): CartLine[] {
   if (!raw) return [];
@@ -31,9 +39,30 @@ function safeParseCart(raw: string | null): CartLine[] {
   }
 }
 
-const HomePage = () => {
-  const navigate = useNavigate();
+function safeParseItemCache(raw: string | null): Record<string, ItemLike> {
+  if (!raw) return {};
+  try {
+    const val = JSON.parse(raw);
+    if (!val || typeof val !== "object") return {};
+    return val as Record<string, ItemLike>;
+  } catch {
+    return {};
+  }
+}
 
+function titleFromSlug(slug: string) {
+  if (!slug) return "All";
+  const words = slug.split("-").filter(Boolean);
+  return words
+    .map((w) => {
+      const lw = w.toLowerCase();
+      if (lw === "cpu" || lw === "gpu") return w.toUpperCase();
+      return lw.charAt(0).toUpperCase() + lw.slice(1);
+    })
+    .join(" ");
+}
+
+const HomePage = () => {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +74,12 @@ const HomePage = () => {
     safeParseCart(localStorage.getItem(CART_KEY))
   );
 
-  // ✅ NEW: Hero slides from DB
+  // ✅ Cached item details (so cart never loses items)
+  const [itemCache, setItemCache] = useState<Record<string, ItemLike>>(() =>
+    safeParseItemCache(localStorage.getItem(CART_ITEMS_KEY))
+  );
+
+  // ✅ Hero slides from DB
   const [slides, setSlides] = useState<HeroSlide[]>([]);
   const [slidesErr, setSlidesErr] = useState<string | null>(null);
 
@@ -54,10 +88,16 @@ const HomePage = () => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  // ✅ Fetch hero banners from Supabase
+  // persist item cache
+  useEffect(() => {
+    localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
+  }, [itemCache]);
+
+  // ✅ Fetch hero banners + auto-refresh when Admin saves
   useEffect(() => {
     let alive = true;
-    (async () => {
+
+    const loadBanners = async () => {
       try {
         setSlidesErr(null);
         const rows = await fetchActiveBanners();
@@ -68,23 +108,75 @@ const HomePage = () => {
             id: r.id,
             title: r.title,
             subtitle: r.subtitle,
+            note_text: r.note_text ?? undefined,
+
             image: r.image_url,
             ctaText: r.cta_text,
             ctaHref: r.cta_href,
+
+            overlay_strength: r.overlay_strength,
+            align: r.align,
+            show_fb_buttons: r.show_fb_buttons,
+
+            title_color: r.title_color,
+            subtitle_color: r.subtitle_color,
+            note_color: r.note_color,
           }))
         );
       } catch (e: any) {
         if (!alive) return;
         setSlidesErr(e?.message ?? "Failed to load banners");
       }
-    })();
+    };
+
+    // initial load
+    loadBanners();
+
+    // ✅ Refresh when tab focus returns
+    const onFocus = () => loadBanners();
+
+    // ✅ Refresh when page becomes visible again
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") loadBanners();
+    };
+
+    // ✅ Refresh when Admin saves (same tab) via custom event
+    const onBannersUpdated = () => loadBanners();
+
+    // ✅ Refresh when Admin saves (cross-tab) via localStorage key
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === BANNERS_REFRESH_KEY) loadBanners();
+    };
+
+    // ✅ Refresh when Admin saves (cross-tab) via BroadcastChannel
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel(BANNERS_BC_NAME);
+      bc.onmessage = (msg) => {
+        if (msg?.data?.type === "BANNERS_UPDATED") loadBanners();
+      };
+    } catch {
+      // ignore if unsupported
+    }
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("kjk:banners-updated", onBannersUpdated as any);
+    window.addEventListener("storage", onStorage);
 
     return () => {
       alive = false;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("kjk:banners-updated", onBannersUpdated as any);
+      window.removeEventListener("storage", onStorage);
+      try {
+        bc?.close();
+      } catch {}
     };
   }, []);
 
-  // Fetch products (for itemsById mapping only; cart needs product info)
+  // Fetch products (used for cart item details + search)
   useEffect(() => {
     let alive = true;
 
@@ -98,6 +190,23 @@ const HomePage = () => {
           if (!alive) return;
 
           setItems(data);
+
+          // ✅ update cache from loaded products
+          setItemCache((prev) => {
+            const next = { ...prev };
+            for (const p of data) {
+              next[p.id] = {
+                id: p.id,
+                name: p.name,
+                category:
+                  String(p.category_slug ?? "").toLowerCase() === "services"
+                    ? "Services"
+                    : titleFromSlug(String(p.category_slug ?? "All")),
+                price: Number(p.price ?? 0),
+              };
+            }
+            return next;
+          });
         } catch (e: any) {
           if (!alive) return;
           setErr(e?.message ?? "Failed to load products");
@@ -114,24 +223,25 @@ const HomePage = () => {
     };
   }, [query]);
 
-  // ✅ itemsById for CartDrawer (expects Item-like shape)
+  // ✅ itemsById for CartDrawer (cache + current items)
   const itemsById = useMemo(() => {
-    const map: Record<string, any> = {};
+    const map: Record<string, any> = { ...itemCache };
+
     for (const p of items) {
       map[p.id] = {
         id: p.id,
         name: p.name,
         category:
-          p.category_slug?.toLowerCase() === "services"
+          String(p.category_slug ?? "").toLowerCase() === "services"
             ? "Services"
-            : String(p.category_slug ?? "All"),
+            : titleFromSlug(String(p.category_slug ?? "All")),
         price: Number(p.price ?? 0),
       };
     }
-    return map;
-  }, [items]);
 
-  // cart count badge (total qty)
+    return map;
+  }, [itemCache, items]);
+
   const cartCount = useMemo(
     () => cart.reduce((sum, l) => sum + (l.qty || 0), 0),
     [cart]
@@ -173,7 +283,6 @@ const HomePage = () => {
       />
 
       <section className="mx-auto max-w-7xl px-0 pt-0">
-        {/* ✅ DB-driven banners */}
         {slidesErr ? (
           <div className="p-4 text-sm text-red-600">{slidesErr}</div>
         ) : (
@@ -183,7 +292,6 @@ const HomePage = () => {
 
       <BrowseCategories />
 
-      {/* Footer */}
       <footer id="footer" className="mt-16 border-t border-black/10 bg-white">
         <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>

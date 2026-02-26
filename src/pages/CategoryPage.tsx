@@ -16,7 +16,7 @@ type ItemLike = {
 };
 
 const CART_KEY = "kjk_cart_v1";
-const CART_ITEMS_KEY = "kjk_cart_items_v1"; // ✅ cache of item details by id
+const CART_ITEMS_KEY = "kjk_cart_items_v1";
 
 function safeParseCart(raw: string | null): CartLine[] {
   if (!raw) return [];
@@ -66,44 +66,52 @@ export default function CategoryPage() {
     [categoryName]
   );
 
+  // ✅ allow singular/plural fallback (laptop/laptops)
+  const categoryCandidates = useMemo(() => {
+    if (!slug) return [];
+    const a = slug;
+    const b = slug.endsWith("s") ? slug.slice(0, -1) : `${slug}s`;
+    return Array.from(new Set([a, b])).filter(Boolean);
+  }, [slug]);
+
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ Cart state (shared)
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartLine[]>(() =>
     safeParseCart(localStorage.getItem(CART_KEY))
   );
 
-  // ✅ Cached item details (shared)
   const [itemCache, setItemCache] = useState<Record<string, ItemLike>>(() =>
     safeParseItemCache(localStorage.getItem(CART_ITEMS_KEY))
   );
 
-  // persist cart
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  // persist cache
   useEffect(() => {
     localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
   }, [itemCache]);
 
-  // ✅ chip/general brands (checkbox)
   const [brandOptions, setBrandOptions] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [brandLoading, setBrandLoading] = useState(false);
 
-  // ✅ partner brand dropdown (GPU/Mobo only)
   const isGpuOrMobo = slug === "gpu" || slug === "motherboard";
   const [partnerOptions, setPartnerOptions] = useState<string[]>([]);
   const [partnerBrand, setPartnerBrand] = useState<string>("");
   const [partnerLoading, setPartnerLoading] = useState(false);
 
-  // Load checkbox brands
+  // ✅ Header dropdown needs a value that matches options exactly
+  const activeHeaderCategory = useMemo(() => {
+    if (!slug || slug === "all") return "All";
+    return titleFromSlug(slug) as any;
+  }, [slug]);
+
+  // Load checkbox brands (use base slug)
   useEffect(() => {
     let alive = true;
 
@@ -161,7 +169,7 @@ export default function CategoryPage() {
     };
   }, [slug, isGpuOrMobo]);
 
-  // Load products
+  // Load products ✅ (supports laptop/laptops)
   useEffect(() => {
     let alive = true;
 
@@ -176,16 +184,15 @@ export default function CategoryPage() {
         }
 
         const data = await fetchProducts({
-          category: slug,
-          q: query,
-          brands: selectedBrands,
-          partnerBrand: isGpuOrMobo ? partnerBrand || undefined : undefined,
-        });
+  category: categoryCandidates.length ? categoryCandidates : slug,
+  q: query,
+  brands: selectedBrands,
+  partnerBrand: isGpuOrMobo ? partnerBrand || undefined : undefined,
+});
 
         if (!alive) return;
         setItems(data);
 
-        // ✅ IMPORTANT: update cache from loaded products (so cart can render across pages)
         setItemCache((prev) => {
           const next = { ...prev };
           for (const p of data) {
@@ -213,7 +220,7 @@ export default function CategoryPage() {
     return () => {
       alive = false;
     };
-  }, [slug, query, selectedBrands, partnerBrand, isGpuOrMobo]);
+  }, [slug, categoryCandidates, query, selectedBrands, partnerBrand, isGpuOrMobo]);
 
   const catTitle = useMemo(() => titleFromSlug(slug), [slug]);
 
@@ -228,7 +235,6 @@ export default function CategoryPage() {
     setPartnerBrand("");
   }
 
-  // ✅ itemsById comes from cache + current items (so never “loses” previous category items)
   const itemsById = useMemo(() => {
     const map: Record<string, any> = { ...itemCache };
 
@@ -251,55 +257,12 @@ export default function CategoryPage() {
     [cart]
   );
 
-  // ✅ cart helpers
-  function addToCart(p: ProductRow) {
-    // update cart
-    setCart((prev) => {
-      const found = prev.find((x) => x.id === p.id);
-      if (found) {
-        return prev.map((x) => (x.id === p.id ? { ...x, qty: x.qty + 1 } : x));
-      }
-      return [...prev, { id: p.id, qty: 1 }];
-    });
-
-    // update cache so item renders even after switching categories
-    setItemCache((prev) => ({
-      ...prev,
-      [p.id]: {
-        id: p.id,
-        name: p.name,
-        category:
-          String(p.category_slug ?? "").toLowerCase() === "services"
-            ? "Services"
-            : titleFromSlug(String(p.category_slug ?? "All")),
-        price: Number(p.price ?? 0),
-      },
-    }));
-
-    setCartOpen(true);
-  }
-
-  function setQty(id: string, qty: number) {
-    setCart((prev) =>
-      prev.map((x) => (x.id === id ? { ...x, qty: Math.max(1, qty) } : x))
-    );
-  }
-
-  function removeLine(id: string) {
-    setCart((prev) => prev.filter((x) => x.id !== id));
-    // optional: you can keep cache entry (better for PDF history)
-  }
-
-  function clearCart() {
-    setCart([]);
-  }
-
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
       <HeaderBar
         query={query}
         setQuery={setQuery}
-        activeCategory={catTitle as any}
+        activeCategory={activeHeaderCategory}
         cartCount={cartCount}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -309,29 +272,32 @@ export default function CategoryPage() {
         onClose={() => setCartOpen(false)}
         itemsById={itemsById}
         cart={cart}
-        setQty={setQty}
-        removeLine={removeLine}
-        clearCart={clearCart}
+        setQty={(id, qty) =>
+          setCart((prev) =>
+            prev.map((x) => (x.id === id ? { ...x, qty: Math.max(1, qty) } : x))
+          )
+        }
+        removeLine={(id) => setCart((prev) => prev.filter((x) => x.id !== id))}
+        clearCart={() => setCart([])}
       />
 
       <section className="mx-auto max-w-6xl px-4 py-6">
-       <div className="flex flex-wrap items-start gap-3">
-  <button
-    onClick={() => nav("/")}
-    className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/5"
-    type="button"
-  >
-    ← Back to Home
-  </button>
+        <div className="flex flex-wrap items-start gap-3">
+          <button
+            onClick={() => nav("/")}
+            className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm hover:bg-black/5"
+            type="button"
+          >
+            ← Back to Home
+          </button>
 
-  <div>
-    <div className="text-3xl font-black">{catTitle}</div>
-    <div className="text-sm text-black/60">
-      {loading ? "Loading..." : `Showing ${items.length} item(s)`}
-    </div>
-  </div>
-</div>
-
+          <div>
+            <div className="text-3xl font-black">{catTitle}</div>
+            <div className="text-sm text-black/60">
+              {loading ? "Loading..." : `Showing ${items.length} item(s)`}
+            </div>
+          </div>
+        </div>
 
         {err ? (
           <div className="mt-4 rounded-2xl border border-red-500/20 bg-white p-4 text-sm text-red-600">
@@ -366,7 +332,6 @@ export default function CategoryPage() {
                 </div>
               )}
 
-              {/* Partner dropdown */}
               {isGpuOrMobo ? (
                 <div className="mt-4">
                   <div className="text-xs font-extrabold tracking-wide text-black/70">
@@ -419,13 +384,12 @@ export default function CategoryPage() {
           <div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((it) => (
-  <ProductCard
-    key={it.id}
-    item={it}
-    onView={() => nav(`/product/${it.id}`)}
-  />
-))}
-
+                <ProductCard
+                  key={it.id}
+                  item={it}
+                  onView={() => nav(`/product/${it.id}`)}
+                />
+              ))}
             </div>
 
             {!loading && items.length === 0 ? (
