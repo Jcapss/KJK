@@ -1,3 +1,4 @@
+// src/App.tsx
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 
@@ -11,11 +12,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminProductsPage from "./pages/AdminProductsPage";
 import AdminProductNewPage from "./pages/AdminProductNewPage";
 import AdminProductEditPage from "./pages/AdminProductEditPage";
-
-// ✅ NEW: Categories page
 import AdminCategoriesPage from "./pages/AdminCategoriesPage";
-
-// ✅ NEW: Banners page
 import AdminBannersPage from "./pages/AdminBannersPage";
 
 export default function App() {
@@ -46,7 +43,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ NEW PRODUCT */}
       <Route
         path="/admin/products/new"
         element={
@@ -56,7 +52,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ EDIT PRODUCT */}
       <Route
         path="/admin/products/:id"
         element={
@@ -66,7 +61,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ NEW: MANAGE CATEGORIES */}
       <Route
         path="/admin/categories"
         element={
@@ -76,7 +70,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ NEW: MANAGE HERO BANNERS */}
       <Route
         path="/admin/banners"
         element={

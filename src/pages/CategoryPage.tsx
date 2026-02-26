@@ -1,3 +1,4 @@
+// src/pages/CategoryPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -74,6 +75,20 @@ export default function CategoryPage() {
     return Array.from(new Set([a, b])).filter(Boolean);
   }, [slug]);
 
+  // ✅ Header dropdown value must match DB slug
+  const activeHeaderCategory = useMemo(() => {
+    if (!slug || slug === "all") return "all";
+
+    // If your route uses plural but DB uses singular:
+    const map: Record<string, string> = {
+      laptops: "laptop",
+      // add more only if needed:
+      // monitors: "monitor",
+    };
+
+    return map[slug] ?? slug;
+  }, [slug]);
+
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,12 +119,6 @@ export default function CategoryPage() {
   const [partnerOptions, setPartnerOptions] = useState<string[]>([]);
   const [partnerBrand, setPartnerBrand] = useState<string>("");
   const [partnerLoading, setPartnerLoading] = useState(false);
-
-  // ✅ Header dropdown needs a value that matches options exactly
-  const activeHeaderCategory = useMemo(() => {
-    if (!slug || slug === "all") return "All";
-    return titleFromSlug(slug) as any;
-  }, [slug]);
 
   // Load checkbox brands (use base slug)
   useEffect(() => {
@@ -184,11 +193,11 @@ export default function CategoryPage() {
         }
 
         const data = await fetchProducts({
-  category: categoryCandidates.length ? categoryCandidates : slug,
-  q: query,
-  brands: selectedBrands,
-  partnerBrand: isGpuOrMobo ? partnerBrand || undefined : undefined,
-});
+          category: categoryCandidates.length ? categoryCandidates : slug,
+          q: query,
+          brands: selectedBrands,
+          partnerBrand: isGpuOrMobo ? partnerBrand || undefined : undefined,
+        });
 
         if (!alive) return;
         setItems(data);
@@ -262,7 +271,7 @@ export default function CategoryPage() {
       <HeaderBar
         query={query}
         setQuery={setQuery}
-        activeCategory={activeHeaderCategory}
+        activeCategory={activeHeaderCategory} // ✅ slug-based now
         cartCount={cartCount}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -384,11 +393,7 @@ export default function CategoryPage() {
           <div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((it) => (
-                <ProductCard
-                  key={it.id}
-                  item={it}
-                  onView={() => nav(`/product/${it.id}`)}
-                />
+                <ProductCard key={it.id} item={it} onView={() => nav(`/product/${it.id}`)} />
               ))}
             </div>
 

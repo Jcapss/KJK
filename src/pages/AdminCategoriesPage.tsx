@@ -14,6 +14,16 @@ type CategoryRow = {
 
 const BUCKET = "category-images";
 
+function notifyCategoriesUpdated() {
+  localStorage.setItem("kjk_categories_refresh_v1", String(Date.now()));
+  window.dispatchEvent(new Event("kjk:categories-updated"));
+  try {
+    const bc = new BroadcastChannel("kjk_categories_channel_v1");
+    bc.postMessage({ type: "CATEGORIES_UPDATED" });
+    bc.close();
+  } catch {}
+}
+
 function slugify(input: string) {
   return input
     .trim()
@@ -51,7 +61,9 @@ export default function AdminCategoriesPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState("");
-  const [editExistingImageUrl, setEditExistingImageUrl] = useState<string | null>(null);
+  const [editExistingImageUrl, setEditExistingImageUrl] = useState<string | null>(
+    null
+  );
 
   useEffect(() => setSlug(slugify(label)), [label]);
 
@@ -126,7 +138,7 @@ export default function AdminCategoriesPage() {
     const { error: uploadErr } = await supabase.storage
       .from(BUCKET)
       .upload(filePath, file, {
-        cacheControl: "0", // ✅ avoid cached previews
+        cacheControl: "0",
         upsert: false,
         contentType: file.type || "image/*",
       });
@@ -138,8 +150,7 @@ export default function AdminCategoriesPage() {
 
     if (!publicUrl) throw new Error("Failed to get image URL.");
 
-    // ✅ cache-bust so browser won't show old image
-    return `${publicUrl}?v=${Date.now()}`;
+    return `${publicUrl}?v=${Date.now()}`; // cache bust
   }
 
   async function addCategory(e: React.FormEvent) {
@@ -168,6 +179,9 @@ export default function AdminCategoriesPage() {
 
       if (error) throw error;
 
+      // ✅ auto-reflect in dropdown
+      notifyCategoriesUpdated();
+
       setLabel("");
       setSlug("");
       setImageFile(null);
@@ -192,7 +206,12 @@ export default function AdminCategoriesPage() {
 
       if (error) throw error;
 
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, is_active: next } : r)));
+      setRows((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, is_active: next } : r))
+      );
+
+      // ✅ auto-reflect in dropdown
+      notifyCategoriesUpdated();
     } catch (e: any) {
       setErr(e?.message ?? "Failed to update category.");
     }
@@ -249,6 +268,9 @@ export default function AdminCategoriesPage() {
 
       if (error) throw error;
 
+      // ✅ auto-reflect in dropdown
+      notifyCategoriesUpdated();
+
       await load();
       closeEdit();
     } catch (e: any) {
@@ -268,8 +290,15 @@ export default function AdminCategoriesPage() {
     try {
       await assertAuthed();
 
-      const { error } = await supabase.from("product_categories").delete().eq("id", r.id);
+      const { error } = await supabase
+        .from("product_categories")
+        .delete()
+        .eq("id", r.id);
+
       if (error) throw error;
+
+      // ✅ auto-reflect in dropdown
+      notifyCategoriesUpdated();
 
       await load();
     } catch (e: any) {
@@ -282,7 +311,9 @@ export default function AdminCategoriesPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-2xl font-black">Categories</div>
-          <div className="text-sm text-black/60">Add and manage product categories</div>
+          <div className="text-sm text-black/60">
+            Add and manage product categories
+          </div>
         </div>
       </div>
 
@@ -335,11 +366,17 @@ export default function AdminCategoriesPage() {
           {imagePreview ? (
             <div className="mt-2 overflow-hidden rounded-2xl border border-black/10 bg-black/5">
               <div className="aspect-[16/9]">
-                <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="h-full w-full object-cover"
+                />
               </div>
             </div>
           ) : (
-            <div className="text-xs text-black/50">Optional. Upload an image for this category.</div>
+            <div className="text-xs text-black/50">
+              Optional. Upload an image for this category.
+            </div>
           )}
         </div>
 
@@ -380,7 +417,11 @@ export default function AdminCategoriesPage() {
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-16 overflow-hidden rounded-xl border border-black/10 bg-black/5">
                     {r.image_url ? (
-                      <img src={r.image_url} alt={r.label} className="h-full w-full object-cover" />
+                      <img
+                        src={r.image_url}
+                        alt={r.label}
+                        className="h-full w-full object-cover"
+                      />
                     ) : null}
                   </div>
 
@@ -439,7 +480,9 @@ export default function AdminCategoriesPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-extrabold">Edit Category</div>
-                <div className="text-xs text-black/60">Update label/slug and image.</div>
+                <div className="text-xs text-black/60">
+                  Update label/slug and image.
+                </div>
               </div>
 
               <button

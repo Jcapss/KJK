@@ -129,35 +129,25 @@ const HomePage = () => {
       }
     };
 
-    // initial load
     loadBanners();
 
-    // ✅ Refresh when tab focus returns
     const onFocus = () => loadBanners();
-
-    // ✅ Refresh when page becomes visible again
     const onVisibility = () => {
       if (document.visibilityState === "visible") loadBanners();
     };
-
-    // ✅ Refresh when Admin saves (same tab) via custom event
     const onBannersUpdated = () => loadBanners();
 
-    // ✅ Refresh when Admin saves (cross-tab) via localStorage key
     const onStorage = (e: StorageEvent) => {
       if (e.key === BANNERS_REFRESH_KEY) loadBanners();
     };
 
-    // ✅ Refresh when Admin saves (cross-tab) via BroadcastChannel
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel(BANNERS_BC_NAME);
       bc.onmessage = (msg) => {
         if (msg?.data?.type === "BANNERS_UPDATED") loadBanners();
       };
-    } catch {
-      // ignore if unsupported
-    }
+    } catch {}
 
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
@@ -267,7 +257,7 @@ const HomePage = () => {
       <HeaderBar
         query={query}
         setQuery={setQuery}
-        activeCategory="All"
+        activeCategory="all" // ✅ IMPORTANT: slug-based now
         cartCount={cartCount}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -312,10 +302,7 @@ const HomePage = () => {
               </li>
               <li>
                 <span className="font-semibold text-black">Email:</span>{" "}
-                <a
-                  className="hover:underline"
-                  href="mailto:darylescasinas@gmail.com"
-                >
+                <a className="hover:underline" href="mailto:darylescasinas@gmail.com">
                   darylescasinas@gmail.com
                 </a>
               </li>
@@ -359,9 +346,7 @@ const HomePage = () => {
 
         <div className="border-t border-black/10">
           <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-4 text-xs text-black/50 sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              © {new Date().getFullYear()} KJK TechShop. All rights reserved.
-            </span>
+            <span>© {new Date().getFullYear()} KJK TechShop. All rights reserved.</span>
           </div>
         </div>
       </footer>

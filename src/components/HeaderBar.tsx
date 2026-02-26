@@ -1,52 +1,103 @@
 // src/components/HeaderBar.tsx
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { fetchCategories, type CategoryDbRow } from "../data/categoriesApi";
 
-type CategoryName =
-  | "All"
-  | "CPU"
-  | "GPU"
-  | "Motherboard"
-  | "Monitor"
-  | "Laptops"
-  | "Storage"
-  | "Accessories"
-  | "Services";
+type CategoryOption = {
+  value: string; // "all" or slug
+  label: string; // shown text
+};
 
 export default function HeaderBar({
   query,
   setQuery,
-  activeCategory = "All",
+  activeCategory = "all", // now expects slug or "all"
   cartCount = 0,
   onOpenCart,
 }: {
   query: string;
   setQuery: (v: string) => void;
-  activeCategory?: CategoryName;
+
+  /**
+   * ✅ IMPORTANT CHANGE:
+   * pass category slug here (ex: "cpu", "gpu", "storage-ssd-hdd-nvme")
+   * or "all"
+   */
+  activeCategory?: string;
+
   cartCount?: number;
   onOpenCart?: () => void;
 }) {
   const nav = useNavigate();
   const location = useLocation();
 
-  const categories = useMemo<CategoryName[]>(
-    () => [
-      "All",
-      "CPU",
-      "GPU",
-      "Motherboard",
-      "Monitor",
-      "Laptops",
-      "Storage",
-      "Accessories",
-      "Services",
-    ],
-    []
-  );
+  const [cats, setCats] = useState<CategoryDbRow[]>([]);
+  const [catsLoading, setCatsLoading] = useState(false);
 
-  function goToCategory(cat: CategoryName) {
-    if (cat === "All") nav("/");
-    else nav(`/category/${encodeURIComponent(cat.toLowerCase())}`);
+  async function loadCategories() {
+    setCatsLoading(true);
+    try {
+      const data = await fetchCategories(); // active categories
+      setCats(data);
+    } catch {
+      // silently fail (dropdown still works with "All")
+      setCats([]);
+    } finally {
+      setCatsLoading(false);
+    }
+  }
+
+  // initial load
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  // ✅ auto-refresh categories when admin updates
+  useEffect(() => {
+    const refetch = () => loadCategories();
+
+    // same tab (custom event)
+    window.addEventListener("kjk:categories-updated", refetch);
+
+    // other tabs (localStorage)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "kjk_categories_refresh_v1") refetch();
+    };
+    window.addEventListener("storage", onStorage);
+
+    // BroadcastChannel (more reliable)
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("kjk_categories_channel_v1");
+      bc.onmessage = (msg) => {
+        if (msg?.data?.type === "CATEGORIES_UPDATED") refetch();
+      };
+    } catch {}
+
+    return () => {
+      window.removeEventListener("kjk:categories-updated", refetch);
+      window.removeEventListener("storage", onStorage);
+      try {
+        bc?.close();
+      } catch {}
+    };
+  }, []);
+
+  const options = useMemo<CategoryOption[]>(() => {
+    const base: CategoryOption[] = [{ value: "all", label: "All" }];
+
+    // show all active categories
+    const fromDb = cats.map((c) => ({
+      value: c.slug, // ✅ slug used for routing
+      label: c.label, // ✅ label shown in dropdown
+    }));
+
+    return base.concat(fromDb);
+  }, [cats]);
+
+  function goToCategory(value: string) {
+    if (value === "all") nav("/");
+    else nav(`/category/${encodeURIComponent(value)}`); // value = slug
   }
 
   function scrollToFooter() {
@@ -63,7 +114,7 @@ export default function HeaderBar({
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/85 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 py-3">
-        {/* ✅ DESKTOP (one row like your screenshot) */}
+        {/* ✅ DESKTOP */}
         <div className="hidden lg:flex items-center gap-3">
           {/* Brand */}
           <button
@@ -76,16 +127,12 @@ export default function HeaderBar({
               K
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-extrabold tracking-tight">
-                KJK TechShop
-              </div>
-              <div className="text-xs text-black/60">
-                Parts • Laptops • CCTV • Services
-              </div>
+              <div className="text-sm font-extrabold tracking-tight">KJK TechShop</div>
+              <div className="text-xs text-black/60">Parts • Laptops • CCTV • Services</div>
             </div>
           </button>
 
-          {/* Search (fills remaining space) */}
+          {/* Search */}
           <div className="flex-1">
             <div className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-4">
               <span className="text-black/35">🔎</span>
@@ -101,13 +148,15 @@ export default function HeaderBar({
           {/* Category */}
           <select
             value={activeCategory}
-            onChange={(e) => goToCategory(e.target.value as CategoryName)}
-            className="shrink-0 w-[160px] rounded-2xl border border-black/10 bg-white px-3 py-3 text-sm font-medium outline-none hover:bg-black/5"
+            onChange={(e) => goToCategory(e.target.value)}
+            className="shrink-0 w-[200px] rounded-2xl border border-black/10 bg-white px-3 py-3 text-sm font-medium outline-none hover:bg-black/5"
             aria-label="Choose category"
           >
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            {catsLoading ? <option value="all">Loading…</option> : null}
+
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
@@ -147,7 +196,7 @@ export default function HeaderBar({
           </button>
         </div>
 
-        {/* ✅ MOBILE/TABLET (compact, stacked) */}
+        {/* ✅ MOBILE/TABLET */}
         <div className="lg:hidden">
           {/* Top row */}
           <div className="flex items-center justify-between gap-2">
@@ -161,9 +210,7 @@ export default function HeaderBar({
                 K
               </div>
               <div className="leading-tight">
-                <div className="text-[13px] font-extrabold tracking-tight">
-                  KJK TechShop
-                </div>
+                <div className="text-[13px] font-extrabold tracking-tight">KJK TechShop</div>
               </div>
             </button>
 
@@ -208,13 +255,15 @@ export default function HeaderBar({
           <div className="mt-2 grid grid-cols-2 gap-2">
             <select
               value={activeCategory}
-              onChange={(e) => goToCategory(e.target.value as CategoryName)}
+              onChange={(e) => goToCategory(e.target.value)}
               className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-[13px] outline-none hover:bg-black/5"
               aria-label="Choose category"
             >
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {catsLoading ? <option value="all">Loading…</option> : null}
+
+              {options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>
@@ -231,4 +280,4 @@ export default function HeaderBar({
       </div>
     </header>
   );
-} 
+}
