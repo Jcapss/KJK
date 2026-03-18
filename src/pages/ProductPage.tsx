@@ -6,6 +6,7 @@ import CartDrawer, { type CartLine } from "../components/CartDrawer";
 
 import { fetchProductById } from "../data/productsApi";
 import type { ProductRow, CategorySlug } from "../types/db";
+import { supabase } from "../lib/supabase";
 
 type CategoryName =
   | "All"
@@ -17,6 +18,11 @@ type CategoryName =
   | "Storage"
   | "Accessories"
   | "Services";
+
+type ProfileInfo = {
+  role: string;
+  approval_status: string;
+};
 
 const CART_KEY = "kjk_cart_v1";
 
@@ -63,23 +69,76 @@ export default function ProductPage() {
   const nav = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  const [query, setQuery] = useState("");
   const [item, setItem] = useState<ProductRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ Cart
+  const [profile, setProfile] = useState<ProfileInfo | null>(null);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartLine[]>(() =>
     safeParseCart(localStorage.getItem(CART_KEY))
   );
 
-  // persist cart
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  // load product
+  useEffect(() => {
+    let alive = true;
+
+    async function loadAccess() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!alive) return;
+
+        if (!user) {
+          setProfile(null);
+          setCheckingAccess(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("role, approval_status")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!alive) return;
+
+        if (error || !data) {
+          setProfile(null);
+          setCheckingAccess(false);
+          return;
+        }
+
+        setProfile(data);
+        setCheckingAccess(false);
+      } catch {
+        if (!alive) return;
+        setProfile(null);
+        setCheckingAccess(false);
+      }
+    }
+
+    loadAccess();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      loadAccess();
+    });
+
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   useEffect(() => {
     let alive = true;
 
@@ -117,13 +176,11 @@ export default function ProductPage() {
     return slugToCategoryName(item.category_slug);
   }, [item]);
 
-  // ✅ cart badge count (total qty)
   const cartCount = useMemo(
     () => cart.reduce((sum, l) => sum + (l.qty || 0), 0),
     [cart]
   );
 
-  // ✅ itemsById for CartDrawer (just the current product + safe fallback)
   const itemsById = useMemo(() => {
     const map: Record<string, any> = {};
     if (item) {
@@ -140,7 +197,6 @@ export default function ProductPage() {
     return map;
   }, [item]);
 
-  // ✅ cart helpers
   function addToCart(productId: string) {
     setCart((prev) => {
       const found = prev.find((x) => x.id === productId);
@@ -172,9 +228,7 @@ export default function ProductPage() {
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-black">
         <HeaderBar
-          query={query}
-          setQuery={setQuery}
-          activeCategory="All"
+          activeCategory="all"
           cartCount={cartCount}
           onOpenCart={() => setCartOpen(true)}
         />
@@ -189,9 +243,7 @@ export default function ProductPage() {
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-black">
         <HeaderBar
-          query={query}
-          setQuery={setQuery}
-          activeCategory="All"
+          activeCategory="all"
           cartCount={cartCount}
           onOpenCart={() => setCartOpen(true)}
         />
@@ -215,9 +267,7 @@ export default function ProductPage() {
     return (
       <div className="min-h-screen bg-[#f6f7fb] text-black">
         <HeaderBar
-          query={query}
-          setQuery={setQuery}
-          activeCategory="All"
+          activeCategory="all"
           cartCount={cartCount}
           onOpenCart={() => setCartOpen(true)}
         />
@@ -231,12 +281,22 @@ export default function ProductPage() {
   const price = Number(item.price);
   const isQuote = item.category_slug === "services" && price <= 0;
 
+  const canViewPrice =
+    !!profile &&
+    (profile.role === "admin" || profile.approval_status === "approved");
+
+  const showPendingMessage =
+    !!profile &&
+    profile.role !== "admin" &&
+    (profile.approval_status === "pending" ||
+      profile.approval_status === "rejected");
+
+  const canAddToCart = canViewPrice;
+
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
       <HeaderBar
-        query={query}
-        setQuery={setQuery}
-        activeCategory={activeCategory}
+        activeCategory={item.category_slug}
         cartCount={cartCount}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -271,8 +331,7 @@ export default function ProductPage() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          {/* Image */}
-          <div className="rounded-2xl overflow-hidden border border-black/10 bg-white">
+          <div className="overflow-hidden rounded-2xl border border-black/10 bg-white">
             <div className="aspect-[4/3] bg-white">
               {item.image_url ? (
                 <img
@@ -282,24 +341,31 @@ export default function ProductPage() {
                   loading="lazy"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-5xl bg-black/5">
+                <div className="flex h-full w-full items-center justify-center bg-black/5 text-5xl">
                   📦
                 </div>
               )}
             </div>
           </div>
 
-          {/* Details */}
-          <div className="rounded-2xl bg-white p-6 border border-black/10">
+          <div className="rounded-2xl border border-black/10 bg-white p-6">
             <div className="text-sm text-black/60">{activeCategory}</div>
 
             <div className="mt-1 text-3xl font-semibold">{item.name}</div>
             <div className="mt-2 text-sm text-black/60">{item.description}</div>
 
             <div className="mt-5">
-              <div className="text-lg font-bold">
-                {isQuote ? "For quotation" : `₱${price.toLocaleString()}`}
-              </div>
+              {checkingAccess ? (
+                <div className="text-lg font-bold text-black/40">Checking...</div>
+              ) : canViewPrice ? (
+                <div className="text-lg font-bold">
+                  {isQuote ? "For quotation" : `₱${price.toLocaleString()}`}
+                </div>
+              ) : (
+                <div className="text-base font-semibold text-blue-600">
+                  {showPendingMessage ? "Awaiting admin approval" : "Login to view price"}
+                </div>
+              )}
 
               <div
                 className={[
@@ -318,18 +384,37 @@ export default function ProductPage() {
                   : "AVAILABLE"}
               </div>
 
-              {/* ✅ Add to cart button */}
-              <button
-                onClick={() => addToCart(item.id)}
-                className="mt-5 w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
-                type="button"
-              >
-                Add to Cart
-              </button>
+              {canAddToCart ? (
+                <>
+                  <button
+                    onClick={() => addToCart(item.id)}
+                    className="mt-5 w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
+                    type="button"
+                  >
+                    Add to Cart
+                  </button>
 
-              <div className="mt-2 text-xs text-black/50">
-                This adds the item to your quotation cart (no account needed).
-              </div>
+                  <div className="mt-2 text-xs text-black/50">
+                    This adds the item to your quotation cart.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => nav(profile ? "/login" : "/register")}
+                    className="mt-5 w-full rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
+                    type="button"
+                  >
+                    {profile ? "Go to Login" : "Register to View Price"}
+                  </button>
+
+                  <div className="mt-2 text-xs text-black/50">
+                    {showPendingMessage
+                      ? "Your account must be approved by admin before seeing and quoting prices."
+                      : "Create an approved account to see pricing and quotation options."}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

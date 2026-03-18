@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import CategoryPage from "./pages/CategoryPage";
 import ProductPage from "./pages/ProductPage";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 
 import AdminRoute from "./components/AdminRoute";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -14,17 +15,38 @@ import AdminProductNewPage from "./pages/AdminProductNewPage";
 import AdminProductEditPage from "./pages/AdminProductEditPage";
 import AdminCategoriesPage from "./pages/AdminCategoriesPage";
 import AdminBannersPage from "./pages/AdminBannersPage";
+import AdminUsersPage from "./pages/AdminUsersPage"; // ✅ NEW PAGE
 
 export default function App() {
   return (
     <Routes>
-      {/* Public */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/category/:categoryName" element={<CategoryPage />} />
-      <Route path="/product/:id" element={<ProductPage />} />
-      <Route path="/login" element={<LoginPage />} />
 
-      {/* Admin */}
+      {/* ================= PUBLIC ROUTES ================= */}
+
+      <Route path="/" element={<HomePage />} />
+
+      <Route
+        path="/category/:categoryName"
+        element={<CategoryPage />}
+      />
+
+      <Route
+        path="/product/:id"
+        element={<ProductPage />}
+      />
+
+      <Route
+        path="/login"
+        element={<LoginPage />}
+      />
+
+      <Route
+        path="/register"
+        element={<RegisterPage />}
+      />
+
+      {/* ================= ADMIN ROUTES ================= */}
+
       <Route
         path="/admin-dashboard"
         element={
@@ -78,6 +100,17 @@ export default function App() {
           </AdminRoute>
         }
       />
+
+      {/* ✅ ADMIN USER APPROVAL PAGE */}
+      <Route
+        path="/admin/users"
+        element={
+          <AdminRoute>
+            <AdminUsersPage />
+          </AdminRoute>
+        }
+      />
+
     </Routes>
   );
 }

@@ -16,12 +16,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     nav("/login");
   }
 
-  // ✅ close drawer on route change
   useEffect(() => {
     setOpen(false);
   }, [loc.pathname]);
 
-  // ✅ close on Escape
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -61,6 +59,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ].join(" ")}
         >
           <span className="text-lg">📦</span> Products
+        </Link>
+
+        {/* ✅ NEW USERS PAGE */}
+        <Link
+          to="/admin/users"
+          className={[
+            "flex items-center gap-3 rounded-2xl px-4 py-3 font-semibold",
+            isActive("/admin/users") ? "bg-black text-white" : "hover:bg-black/5",
+          ].join(" ")}
+        >
+          <span className="text-lg">👤</span> Users
         </Link>
 
         <Link
@@ -106,7 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:py-6">
-        {/* ✅ Mobile top bar */}
+
         <div className="lg:hidden mb-4 flex items-center justify-between rounded-3xl bg-white p-3 shadow-sm border border-black/10">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-2xl bg-black text-white grid place-items-center font-black">
@@ -122,13 +131,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             type="button"
             onClick={() => setOpen(true)}
             className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold hover:bg-black/5"
-            aria-label="Open menu"
           >
             ☰
           </button>
         </div>
 
-        {/* ✅ Desktop layout */}
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
           <div className="hidden lg:block lg:sticky lg:top-6 lg:self-start">
             {Sidebar}
@@ -137,45 +144,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <main className="rounded-3xl bg-white p-4 sm:p-6 shadow-sm border border-black/10">
             {children}
           </main>
-        </div>
-      </div>
-
-      {/* ✅ Mobile Drawer */}
-      <div
-        className={[
-          "lg:hidden fixed inset-0 z-50",
-          open ? "pointer-events-auto" : "pointer-events-none",
-        ].join(" ")}
-        aria-hidden={!open}
-      >
-        {/* Backdrop */}
-        <div
-          className={[
-            "absolute inset-0 bg-black/40 transition-opacity",
-            open ? "opacity-100" : "opacity-0",
-          ].join(" ")}
-          onClick={() => setOpen(false)}
-        />
-
-        {/* Panel */}
-        <div
-          className={[
-            "absolute left-0 top-0 h-full w-[320px] max-w-[85vw] p-4 transition-transform",
-            open ? "translate-x-0" : "-translate-x-full",
-          ].join(" ")}
-        >
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-extrabold">Menu</div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold hover:bg-black/5"
-              aria-label="Close menu"
-            >
-              ✕
-            </button>
-          </div>
-          {Sidebar}
         </div>
       </div>
     </div>
