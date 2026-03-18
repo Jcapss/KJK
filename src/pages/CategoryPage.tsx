@@ -67,7 +67,6 @@ export default function CategoryPage() {
     [categoryName]
   );
 
-  // ✅ allow singular/plural fallback (laptop/laptops)
   const categoryCandidates = useMemo(() => {
     if (!slug) return [];
     const a = slug;
@@ -75,21 +74,17 @@ export default function CategoryPage() {
     return Array.from(new Set([a, b])).filter(Boolean);
   }, [slug]);
 
-  // ✅ Header dropdown value must match DB slug
   const activeHeaderCategory = useMemo(() => {
     if (!slug || slug === "all") return "all";
 
-    // If your route uses plural but DB uses singular:
     const map: Record<string, string> = {
       laptops: "laptop",
-      // add more only if needed:
-      // monitors: "monitor",
     };
 
     return map[slug] ?? slug;
   }, [slug]);
 
-  const [query, setQuery] = useState("");
+  const [query] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -103,14 +98,6 @@ export default function CategoryPage() {
     safeParseItemCache(localStorage.getItem(CART_ITEMS_KEY))
   );
 
-  useEffect(() => {
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  }, [cart]);
-
-  useEffect(() => {
-    localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
-  }, [itemCache]);
-
   const [brandOptions, setBrandOptions] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [brandLoading, setBrandLoading] = useState(false);
@@ -120,7 +107,14 @@ export default function CategoryPage() {
   const [partnerBrand, setPartnerBrand] = useState<string>("");
   const [partnerLoading, setPartnerLoading] = useState(false);
 
-  // Load checkbox brands (use base slug)
+  useEffect(() => {
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
+    localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
+  }, [itemCache]);
+
   useEffect(() => {
     let alive = true;
 
@@ -128,12 +122,15 @@ export default function CategoryPage() {
       try {
         setBrandLoading(true);
         setSelectedBrands([]);
+
         if (!slug) {
           setBrandOptions([]);
           return;
         }
+
         const brands = await fetchBrands({ category: slug });
         if (!alive) return;
+
         setBrandOptions(brands);
       } catch {
         if (!alive) return;
@@ -149,7 +146,6 @@ export default function CategoryPage() {
     };
   }, [slug]);
 
-  // Load partner dropdown options (only GPU/Mobo)
   useEffect(() => {
     let alive = true;
 
@@ -163,6 +159,7 @@ export default function CategoryPage() {
         setPartnerLoading(true);
         const opts = await fetchPartnerBrands({ category: slug });
         if (!alive) return;
+
         setPartnerOptions(opts);
       } catch {
         if (!alive) return;
@@ -178,7 +175,6 @@ export default function CategoryPage() {
     };
   }, [slug, isGpuOrMobo]);
 
-  // Load products ✅ (supports laptop/laptops)
   useEffect(() => {
     let alive = true;
 
@@ -200,6 +196,7 @@ export default function CategoryPage() {
         });
 
         if (!alive) return;
+
         setItems(data);
 
         setItemCache((prev) => {
@@ -258,6 +255,7 @@ export default function CategoryPage() {
         price: Number(p.price ?? 0),
       };
     }
+
     return map;
   }, [itemCache, items]);
 
@@ -269,9 +267,7 @@ export default function CategoryPage() {
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
       <HeaderBar
-        query={query}
-        setQuery={setQuery}
-        activeCategory={activeHeaderCategory} // ✅ slug-based now
+        activeCategory={activeHeaderCategory}
         cartCount={cartCount}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -315,8 +311,7 @@ export default function CategoryPage() {
         ) : null}
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
-          {/* FILTER SIDEBAR */}
-          <aside className="rounded-2xl border border-black/10 bg-white p-4 h-fit">
+          <aside className="h-fit rounded-2xl border border-black/10 bg-white p-4">
             <div className="text-sm font-extrabold tracking-wide">PRODUCT BRANDS</div>
             <div className="mt-2 h-[2px] w-full bg-black/10" />
             <div className="mt-1 h-[3px] w-16 bg-red-600" />
@@ -382,14 +377,13 @@ export default function CategoryPage() {
                   Clear
                 </button>
 
-                <div className="ml-auto text-xs text-black/50 self-center">
+                <div className="ml-auto self-center text-xs text-black/50">
                   {selectedBrands.length > 0 ? `${selectedBrands.length} selected` : ""}
                 </div>
               </div>
             </div>
           </aside>
 
-          {/* PRODUCTS GRID */}
           <div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((it) => (

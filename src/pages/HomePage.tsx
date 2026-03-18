@@ -63,37 +63,30 @@ function titleFromSlug(slug: string) {
 }
 
 const HomePage = () => {
-  const [query, setQuery] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ Cart
   const [cartOpen, setCartOpen] = useState(false);
   const [cart, setCart] = useState<CartLine[]>(() =>
     safeParseCart(localStorage.getItem(CART_KEY))
   );
 
-  // ✅ Cached item details (so cart never loses items)
   const [itemCache, setItemCache] = useState<Record<string, ItemLike>>(() =>
     safeParseItemCache(localStorage.getItem(CART_ITEMS_KEY))
   );
 
-  // ✅ Hero slides from DB
   const [slides, setSlides] = useState<HeroSlide[]>([]);
   const [slidesErr, setSlidesErr] = useState<string | null>(null);
 
-  // persist cart
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  // persist item cache
   useEffect(() => {
     localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
   }, [itemCache]);
 
-  // ✅ Fetch hero banners + auto-refresh when Admin saves
   useEffect(() => {
     let alive = true;
 
@@ -109,15 +102,12 @@ const HomePage = () => {
             title: r.title,
             subtitle: r.subtitle,
             note_text: r.note_text ?? undefined,
-
             image: r.image_url,
             ctaText: r.cta_text,
             ctaHref: r.cta_href,
-
             overlay_strength: r.overlay_strength,
             align: r.align,
             show_fb_buttons: r.show_fb_buttons,
-
             title_color: r.title_color,
             subtitle_color: r.subtitle_color,
             note_color: r.note_color,
@@ -166,54 +156,48 @@ const HomePage = () => {
     };
   }, []);
 
-  // Fetch products (used for cart item details + search)
   useEffect(() => {
     let alive = true;
 
-    const timeout = setTimeout(() => {
-      (async () => {
-        try {
-          setErr(null);
-          setLoading(true);
+    (async () => {
+      try {
+        setErr(null);
+        setLoading(true);
 
-          const data = await fetchProducts({ q: query });
-          if (!alive) return;
+        const data = await fetchProducts({});
+        if (!alive) return;
 
-          setItems(data);
+        setItems(data);
 
-          // ✅ update cache from loaded products
-          setItemCache((prev) => {
-            const next = { ...prev };
-            for (const p of data) {
-              next[p.id] = {
-                id: p.id,
-                name: p.name,
-                category:
-                  String(p.category_slug ?? "").toLowerCase() === "services"
-                    ? "Services"
-                    : titleFromSlug(String(p.category_slug ?? "All")),
-                price: Number(p.price ?? 0),
-              };
-            }
-            return next;
-          });
-        } catch (e: any) {
-          if (!alive) return;
-          setErr(e?.message ?? "Failed to load products");
-        } finally {
-          if (!alive) return;
-          setLoading(false);
-        }
-      })();
-    }, 250);
+        setItemCache((prev) => {
+          const next = { ...prev };
+          for (const p of data) {
+            next[p.id] = {
+              id: p.id,
+              name: p.name,
+              category:
+                String(p.category_slug ?? "").toLowerCase() === "services"
+                  ? "Services"
+                  : titleFromSlug(String(p.category_slug ?? "All")),
+              price: Number(p.price ?? 0),
+            };
+          }
+          return next;
+        });
+      } catch (e: any) {
+        if (!alive) return;
+        setErr(e?.message ?? "Failed to load products");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    })();
 
     return () => {
       alive = false;
-      clearTimeout(timeout);
     };
-  }, [query]);
+  }, []);
 
-  // ✅ itemsById for CartDrawer (cache + current items)
   const itemsById = useMemo(() => {
     const map: Record<string, any> = { ...itemCache };
 
@@ -255,9 +239,7 @@ const HomePage = () => {
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
       <HeaderBar
-        query={query}
-        setQuery={setQuery}
-        activeCategory="all" // ✅ IMPORTANT: slug-based now
+        activeCategory="all"
         cartCount={cartCount}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -279,6 +261,22 @@ const HomePage = () => {
           <HeroSlider slides={slides} autoPlay={false} />
         )}
       </section>
+
+      {err ? (
+        <section className="mx-auto max-w-7xl px-4 pt-4">
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {err}
+          </div>
+        </section>
+      ) : null}
+
+      {loading ? (
+        <section className="mx-auto max-w-7xl px-4 py-6">
+          <div className="rounded-2xl border border-black/10 bg-white px-4 py-6 text-sm text-black/60">
+            Loading products...
+          </div>
+        </section>
+      ) : null}
 
       <BrowseCategories />
 
