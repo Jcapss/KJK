@@ -23,11 +23,10 @@ type FormState = {
   is_active: boolean;
   image_url: string;
 
-  overlay_strength: number; // 0-80
+  overlay_strength: number;
   align: Align;
   show_fb_buttons: boolean;
 
-  // ✅ per-text colors
   title_color: string;
   subtitle_color: string;
   note_color: string;
@@ -94,9 +93,9 @@ export default function AdminBannersPage() {
   function openEdit(r: BannerRow) {
     setEditing(r);
     setForm({
-      title: r.title,
+      title: r.title ?? "",
       subtitle: r.subtitle ?? "",
-      note_text: r.note_text ?? "Follow us on Facebook for promos & new arrivals.",
+      note_text: r.note_text ?? "",
 
       cta_text: r.cta_text ?? "",
       cta_href: r.cta_href ?? "",
@@ -135,7 +134,6 @@ export default function AdminBannersPage() {
   }
 
   async function onSave() {
-    if (!form.title.trim()) return alert("Title is required.");
     if (!form.image_url.trim()) return alert("Image is required.");
 
     const overlay = Math.max(0, Math.min(80, Number(form.overlay_strength || 0)));
@@ -143,7 +141,7 @@ export default function AdminBannersPage() {
     setSaving(true);
     try {
       const payload = {
-        title: form.title,
+        title: form.title || "",
         subtitle: form.subtitle || null,
         note_text: form.note_text || null,
 
@@ -169,7 +167,6 @@ export default function AdminBannersPage() {
         await adminCreateBanner(payload as any);
       }
 
-      // ✅ notify homepage to re-fetch (same tab + other tabs)
       localStorage.setItem("kjk_banners_refresh_v1", String(Date.now()));
       window.dispatchEvent(new Event("kjk:banners-updated"));
       try {
@@ -242,11 +239,11 @@ export default function AdminBannersPage() {
                   <div className="flex items-center gap-4">
                     <img
                       src={r.image_url}
-                      alt={r.title}
+                      alt={r.title || "Banner"}
                       className="h-16 w-28 rounded-md object-cover border"
                     />
                     <div>
-                      <div className="font-semibold">{r.title}</div>
+                      <div className="font-semibold">{r.title || "(No title)"}</div>
                       <div className="text-xs text-gray-500">
                         Order: {r.sort_order} • {r.is_active ? "Active" : "Inactive"}
                       </div>
@@ -281,13 +278,10 @@ export default function AdminBannersPage() {
           )}
         </div>
 
-        {/* ✅ RESPONSIVE MODAL (FIXED FOOTER CLICK ON LAPTOP) */}
         {open && (
           <div className="fixed inset-0 z-50 bg-black/50">
-            {/* allow scroll if viewport is small */}
-            <div className="flex min-h-full items-start justify-center p-3 sm:p-6 overflow-y-auto">
-              <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl max-h-[92vh] flex flex-col overflow-hidden">
-                {/* header */}
+            <div className="flex min-h-full items-start justify-center overflow-y-auto p-3 sm:p-6">
+              <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
                 <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
                   <div>
                     <h2 className="text-lg font-bold">
@@ -306,10 +300,8 @@ export default function AdminBannersPage() {
                   </button>
                 </div>
 
-                {/* body (only this scrolls) */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5">
                   <div className="grid gap-5 md:grid-cols-[1fr_1fr]">
-                    {/* FORM */}
                     <div className="grid gap-3">
                       <label className="text-xs font-semibold text-gray-600">
                         Banner Image
@@ -340,7 +332,7 @@ export default function AdminBannersPage() {
                           onChange={(e) =>
                             setForm((p) => ({ ...p, title: e.target.value }))
                           }
-                          className="border rounded px-3 py-2"
+                          className="rounded border px-3 py-2"
                         />
                         <input
                           placeholder="Subtitle"
@@ -348,7 +340,7 @@ export default function AdminBannersPage() {
                           onChange={(e) =>
                             setForm((p) => ({ ...p, subtitle: e.target.value }))
                           }
-                          className="border rounded px-3 py-2"
+                          className="rounded border px-3 py-2"
                         />
                       </div>
 
@@ -358,7 +350,7 @@ export default function AdminBannersPage() {
                         onChange={(e) =>
                           setForm((p) => ({ ...p, note_text: e.target.value }))
                         }
-                        className="border rounded px-3 py-2"
+                        className="rounded border px-3 py-2"
                       />
 
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -368,7 +360,7 @@ export default function AdminBannersPage() {
                           onChange={(e) =>
                             setForm((p) => ({ ...p, cta_text: e.target.value }))
                           }
-                          className="border rounded px-3 py-2"
+                          className="rounded border px-3 py-2"
                         />
                         <input
                           placeholder="CTA Link"
@@ -376,7 +368,7 @@ export default function AdminBannersPage() {
                           onChange={(e) =>
                             setForm((p) => ({ ...p, cta_href: e.target.value }))
                           }
-                          className="border rounded px-3 py-2"
+                          className="rounded border px-3 py-2"
                         />
                       </div>
 
@@ -391,7 +383,7 @@ export default function AdminBannersPage() {
                               sort_order: Number(e.target.value),
                             }))
                           }
-                          className="border rounded px-3 py-2"
+                          className="rounded border px-3 py-2"
                         />
 
                         <select
@@ -402,7 +394,7 @@ export default function AdminBannersPage() {
                               align: e.target.value as Align,
                             }))
                           }
-                          className="border rounded px-3 py-2"
+                          className="rounded border px-3 py-2"
                         >
                           <option value="left">Align: Left</option>
                           <option value="center">Align: Center</option>
@@ -410,12 +402,9 @@ export default function AdminBannersPage() {
                         </select>
                       </div>
 
-                      {/* Colors */}
                       <div className="grid gap-3 sm:grid-cols-3">
                         <label className="text-sm">
-                          <div className="mb-1 text-xs text-gray-500">
-                            Title Color
-                          </div>
+                          <div className="mb-1 text-xs text-gray-500">Title Color</div>
                           <input
                             type="color"
                             value={form.title_color}
@@ -452,7 +441,10 @@ export default function AdminBannersPage() {
                             type="color"
                             value={form.note_color}
                             onChange={(e) =>
-                              setForm((p) => ({ ...p, note_color: e.target.value }))
+                              setForm((p) => ({
+                                ...p,
+                                note_color: e.target.value,
+                              }))
                             }
                             className="h-10 w-full rounded border"
                           />
@@ -506,8 +498,7 @@ export default function AdminBannersPage() {
                       </div>
                     </div>
 
-                    {/* PREVIEW */}
-                    <div className="rounded-xl border overflow-hidden">
+                    <div className="overflow-hidden rounded-xl border">
                       <div className="relative aspect-video bg-black">
                         {imgPreview ? (
                           <>
@@ -520,14 +511,13 @@ export default function AdminBannersPage() {
                               className="absolute inset-0"
                               style={{
                                 background: `rgba(0,0,0,${
-                                  Math.min(80, Math.max(0, form.overlay_strength)) /
-                                  100
+                                  Math.min(80, Math.max(0, form.overlay_strength)) / 100
                                 })`,
                               }}
                             />
                           </>
                         ) : (
-                          <div className="absolute inset-0 grid place-items-center text-white/70 text-sm">
+                          <div className="absolute inset-0 grid place-items-center text-sm text-white/70">
                             Upload an image to preview
                           </div>
                         )}
@@ -543,12 +533,14 @@ export default function AdminBannersPage() {
                           ].join(" ")}
                         >
                           <div className="max-w-[92%]">
-                            <div
-                              className="text-xl sm:text-2xl font-black leading-tight"
-                              style={{ color: form.title_color }}
-                            >
-                              {form.title || "Banner Title"}
-                            </div>
+                            {form.title ? (
+                              <div
+                                className="text-xl font-black leading-tight sm:text-2xl"
+                                style={{ color: form.title_color }}
+                              >
+                                {form.title}
+                              </div>
+                            ) : null}
 
                             {form.subtitle ? (
                               <div
@@ -570,17 +562,17 @@ export default function AdminBannersPage() {
 
                             <div className="mt-3 flex flex-wrap gap-2">
                               {form.cta_text && form.cta_href ? (
-                                <div className="rounded-md bg-red-600 px-3 py-2 text-[11px] sm:text-xs font-semibold text-white">
+                                <div className="rounded-md bg-red-600 px-3 py-2 text-[11px] font-semibold text-white sm:text-xs">
                                   {form.cta_text}
                                 </div>
                               ) : null}
 
                               {form.show_fb_buttons ? (
                                 <>
-                                  <div className="rounded-md border border-white/40 bg-white/10 px-3 py-2 text-[11px] sm:text-xs font-semibold text-white">
+                                  <div className="rounded-md border border-white/40 bg-white/10 px-3 py-2 text-[11px] font-semibold text-white sm:text-xs">
                                     Message on Facebook
                                   </div>
-                                  <div className="rounded-md border border-white/40 bg-white/10 px-3 py-2 text-[11px] sm:text-xs font-semibold text-white">
+                                  <div className="rounded-md border border-white/40 bg-white/10 px-3 py-2 text-[11px] font-semibold text-white sm:text-xs">
                                     Like our Page
                                   </div>
                                 </>
@@ -595,18 +587,17 @@ export default function AdminBannersPage() {
                   </div>
                 </div>
 
-                {/* footer buttons (sticky + always clickable) */}
-                <div className="shrink-0 sticky bottom-0 z-10 bg-white flex flex-col-reverse gap-2 border-t p-4 sm:flex-row sm:justify-end sm:p-5">
+                <div className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t bg-white p-4 sm:flex-row sm:justify-end sm:p-5">
                   <button
                     onClick={() => setOpen(false)}
-                    className="w-full sm:w-auto border rounded px-4 py-2 text-sm"
+                    className="w-full rounded border px-4 py-2 text-sm sm:w-auto"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={onSave}
                     disabled={saving || imgUploading}
-                    className="w-full sm:w-auto bg-black text-white rounded px-4 py-2 text-sm disabled:opacity-60"
+                    className="w-full rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-60 sm:w-auto"
                   >
                     {saving ? "Saving…" : "Save"}
                   </button>
