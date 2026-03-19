@@ -16,6 +16,8 @@ type ItemLike = {
   price: number;
 };
 
+type SortOption = "default" | "price-asc" | "price-desc";
+
 const CART_KEY = "kjk_cart_v1";
 const CART_ITEMS_KEY = "kjk_cart_items_v1";
 const PRODUCTS_PER_PAGE = 9;
@@ -109,6 +111,7 @@ export default function CategoryPage() {
   const [partnerLoading, setPartnerLoading] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SortOption>("default");
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -233,7 +236,7 @@ export default function CategoryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [slug, selectedBrands, partnerBrand, query]);
+  }, [slug, selectedBrands, partnerBrand, query, sortBy]);
 
   const catTitle = useMemo(() => titleFromSlug(slug), [slug]);
 
@@ -246,6 +249,7 @@ export default function CategoryPage() {
   function clearBrands() {
     setSelectedBrands([]);
     setPartnerBrand("");
+    setSortBy("default");
     setCurrentPage(1);
   }
 
@@ -272,13 +276,25 @@ export default function CategoryPage() {
     [cart]
   );
 
-  const totalPages = Math.ceil(items.length / PRODUCTS_PER_PAGE);
+  const sortedItems = useMemo(() => {
+    const copy = [...items];
+
+    if (sortBy === "price-asc") {
+      copy.sort((a, b) => Number(a.price ?? 0) - Number(b.price ?? 0));
+    } else if (sortBy === "price-desc") {
+      copy.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0));
+    }
+
+    return copy;
+  }, [items, sortBy]);
+
+  const totalPages = Math.ceil(sortedItems.length / PRODUCTS_PER_PAGE);
 
   const paginatedItems = useMemo(() => {
     const start = (currentPage - 1) * PRODUCTS_PER_PAGE;
     const end = start + PRODUCTS_PER_PAGE;
-    return items.slice(start, end);
-  }, [items, currentPage]);
+    return sortedItems.slice(start, end);
+  }, [sortedItems, currentPage]);
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
@@ -317,7 +333,7 @@ export default function CategoryPage() {
             <div className="text-sm text-black/60">
               {loading
                 ? "Loading..."
-                : `Showing ${paginatedItems.length} of ${items.length} item(s)`}
+                : `Showing ${paginatedItems.length} of ${sortedItems.length} item(s)`}
             </div>
           </div>
         </div>
@@ -403,13 +419,25 @@ export default function CategoryPage() {
           </aside>
 
           <div>
+            <div className="mb-4 flex justify-end">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="w-full rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-black/10 sm:w-[240px]"
+              >
+                <option value="default">Sort by Price</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+              </select>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {paginatedItems.map((it) => (
                 <ProductCard key={it.id} item={it} onView={() => nav(`/product/${it.id}`)} />
               ))}
             </div>
 
-            {!loading && items.length === 0 ? (
+            {!loading && sortedItems.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
                 No items found in <b>{catTitle}</b>.
               </div>
