@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fetchCategories, type CategoryDbRow } from "../data/categoriesApi";
 import { supabase } from "../lib/supabase";
+import kjkLogo from "../assets/kjk-logo.jpg";
 
 type CategoryOption = {
   value: string;
@@ -154,9 +155,11 @@ export default function HeaderBar({
             onClick={() => nav("/")}
             className="flex items-center gap-3 text-left shrink-0"
           >
-            <div className="h-11 w-11 rounded-2xl bg-black text-white grid place-items-center font-black">
-              K
-            </div>
+            <img
+              src={kjkLogo}
+              alt="KJK TechShop"
+              className="h-11 w-11 rounded-2xl object-cover"
+            />
 
             <div className="leading-tight">
               <div className="text-sm font-extrabold tracking-tight">
@@ -208,7 +211,6 @@ export default function HeaderBar({
           </button>
 
           {/* AUTH */}
-
           {authLoading ? (
             <div className="text-sm text-black/50">Checking...</div>
           ) : !user ? (
@@ -262,19 +264,19 @@ export default function HeaderBar({
               </button>
             </>
           )}
-
         </div>
 
         {/* MOBILE */}
         <div className="lg:hidden flex items-center justify-between">
-
           <button
             onClick={() => nav("/")}
             className="flex items-center gap-2"
           >
-            <div className="h-9 w-9 rounded-2xl bg-black text-white grid place-items-center font-black text-sm">
-              K
-            </div>
+            <img
+              src={kjkLogo}
+              alt="KJK TechShop"
+              className="h-9 w-9 rounded-2xl object-cover"
+            />
 
             <div className="text-[13px] font-extrabold">
               KJK TechShop
@@ -293,7 +295,6 @@ export default function HeaderBar({
               </span>
             )}
           </button>
-
         </div>
       </div>
     </header>
