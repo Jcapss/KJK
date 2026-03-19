@@ -18,6 +18,7 @@ type ItemLike = {
 
 const CART_KEY = "kjk_cart_v1";
 const CART_ITEMS_KEY = "kjk_cart_items_v1";
+const PRODUCTS_PER_PAGE = 9;
 
 function safeParseCart(raw: string | null): CartLine[] {
   if (!raw) return [];
@@ -106,6 +107,8 @@ export default function CategoryPage() {
   const [partnerOptions, setPartnerOptions] = useState<string[]>([]);
   const [partnerBrand, setPartnerBrand] = useState<string>("");
   const [partnerLoading, setPartnerLoading] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -228,6 +231,10 @@ export default function CategoryPage() {
     };
   }, [slug, categoryCandidates, query, selectedBrands, partnerBrand, isGpuOrMobo]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [slug, selectedBrands, partnerBrand, query]);
+
   const catTitle = useMemo(() => titleFromSlug(slug), [slug]);
 
   function toggleBrand(b: string) {
@@ -239,6 +246,7 @@ export default function CategoryPage() {
   function clearBrands() {
     setSelectedBrands([]);
     setPartnerBrand("");
+    setCurrentPage(1);
   }
 
   const itemsById = useMemo(() => {
@@ -263,6 +271,14 @@ export default function CategoryPage() {
     () => cart.reduce((sum, l) => sum + (l.qty || 0), 0),
     [cart]
   );
+
+  const totalPages = Math.ceil(items.length / PRODUCTS_PER_PAGE);
+
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * PRODUCTS_PER_PAGE;
+    const end = start + PRODUCTS_PER_PAGE;
+    return items.slice(start, end);
+  }, [items, currentPage]);
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
@@ -299,7 +315,9 @@ export default function CategoryPage() {
           <div>
             <div className="text-3xl font-black">{catTitle}</div>
             <div className="text-sm text-black/60">
-              {loading ? "Loading..." : `Showing ${items.length} item(s)`}
+              {loading
+                ? "Loading..."
+                : `Showing ${paginatedItems.length} of ${items.length} item(s)`}
             </div>
           </div>
         </div>
@@ -386,7 +404,7 @@ export default function CategoryPage() {
 
           <div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {items.map((it) => (
+              {paginatedItems.map((it) => (
                 <ProductCard key={it.id} item={it} onView={() => nav(`/product/${it.id}`)} />
               ))}
             </div>
@@ -394,6 +412,45 @@ export default function CategoryPage() {
             {!loading && items.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
                 No items found in <b>{catTitle}</b>.
+              </div>
+            ) : null}
+
+            {!loading && totalPages > 1 ? (
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Prev
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                      currentPage === page
+                        ? "border-black bg-black text-white"
+                        : "border-black/10 bg-white text-black hover:bg-black/5"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
             ) : null}
           </div>
