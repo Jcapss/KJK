@@ -107,6 +107,13 @@ function normalizeRamGeneration(input: string) {
   return CANON[upper] ?? cleaned.toUpperCase();
 }
 
+function normalizeServiceType(value?: string | null) {
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "solar") return "solar";
+  if (v === "cctv") return "cctv";
+  return "other";
+}
+
 export default function AdminProductEditPage() {
   const nav = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -137,6 +144,8 @@ export default function AdminProductEditPage() {
   const [existingQuotationPdf, setExistingQuotationPdf] = useState<string | null>(null);
   const [quotationFile, setQuotationFile] = useState<File | null>(null);
 
+  const [serviceType, setServiceType] = useState("other");
+
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
@@ -165,7 +174,7 @@ export default function AdminProductEditPage() {
     [normalizedCategory]
   );
 
-  const isSolar = useMemo(
+  const isServiceCategory = useMemo(
     () => normalizedCategory === "services",
     [normalizedCategory]
   );
@@ -179,6 +188,8 @@ export default function AdminProductEditPage() {
     () => normalizedCategory === "monitor",
     [normalizedCategory]
   );
+
+  const isSolarService = isServiceCategory && serviceType === "solar";
 
   const brandLabel = isAccessories
     ? "Peripheral Type"
@@ -196,8 +207,8 @@ export default function AdminProductEditPage() {
     ? "e.g., Keyboard, Mouse, Headset"
     : isRam
     ? "e.g., DDR4, DDR5"
-    : isSolar
-    ? "e.g., Solar Package"
+    : isServiceCategory
+    ? "e.g., Solar Package, CCTV Package, Installation Service"
     : isMonitor
     ? "e.g., Nvision, ASUS, Acer, MSI"
     : "e.g., AMD, NVIDIA, Intel, ASUS, Acer";
@@ -209,6 +220,22 @@ export default function AdminProductEditPage() {
       setPartnerBrandOptions([]);
     }
   }, [supportsPartnerBrand]);
+
+  useEffect(() => {
+    if (!isServiceCategory) {
+      setServiceType("other");
+      setKwSize("");
+      setSystemType("");
+      setIncludesText("");
+    }
+  }, [isServiceCategory]);
+
+  useEffect(() => {
+    if (!isSolarService) {
+      setKwSize("");
+      setSystemType("");
+    }
+  }, [isSolarService]);
 
   useEffect(() => {
     if (!imageFile) {
@@ -283,13 +310,15 @@ export default function AdminProductEditPage() {
         return;
       }
 
+      const loadedCategory = String(data.category_slug ?? "").toLowerCase();
+      const loadedServiceType =
+        loadedCategory === "services"
+          ? normalizeServiceType(data.service_type)
+          : "other";
+
       setName(data.name ?? "");
       setBrand(data.brand ?? "");
-      setPartnerBrand(
-        String(data.category_slug ?? "").toLowerCase() === "monitor"
-          ? ""
-          : data.partner_brand ?? ""
-      );
+      setPartnerBrand(loadedCategory === "monitor" ? "" : data.partner_brand ?? "");
       setDescription(data.description ?? "");
       setPrice(String(data.price ?? 0));
       setBadge(data.badge ?? "");
@@ -297,10 +326,25 @@ export default function AdminProductEditPage() {
       setIsActive(Boolean(data.is_active));
       setExistingImageUrl(data.image_url ?? null);
 
-      setKwSize(data.kw_size != null ? String(data.kw_size) : "");
-      setSystemType(data.system_type ?? "");
-      setIncludesText(data.includes ?? "");
-      setExistingQuotationPdf(data.quotation_pdf ?? null);
+      setServiceType(loadedServiceType);
+      setKwSize(
+        loadedCategory === "services" && loadedServiceType === "solar" && data.kw_size != null
+          ? String(data.kw_size)
+          : ""
+      );
+      setSystemType(
+        loadedCategory === "services" && loadedServiceType === "solar"
+          ? data.system_type ?? ""
+          : ""
+      );
+      setIncludesText(
+        loadedCategory === "services"
+          ? data.includes ?? ""
+          : ""
+      );
+      setExistingQuotationPdf(
+        loadedCategory === "services" ? data.quotation_pdf ?? null : null
+      );
 
       setLoading(false);
     })();
@@ -437,7 +481,15 @@ export default function AdminProductEditPage() {
     const { error } = await supabase.from("products").update(payload).eq("id", id);
     if (!error) return;
 
-    const columnsToTry = ["brand", "partner_brand", "kw_size", "system_type", "includes", "quotation_pdf"];
+    const columnsToTry = [
+      "brand",
+      "partner_brand",
+      "kw_size",
+      "system_type",
+      "includes",
+      "quotation_pdf",
+      "service_type",
+    ];
 
     let currentPayload = { ...payload };
     for (const col of columnsToTry) {
@@ -497,10 +549,12 @@ export default function AdminProductEditPage() {
         category_slug: categorySlug,
         image_url,
         is_active: isActive,
-        kw_size: isSolar && kwSize ? Number(kwSize) : null,
-        system_type: isSolar ? systemType.trim() || null : null,
-        includes: isSolar ? includesText.trim() || null : null,
-        quotation_pdf: isSolar ? quotation_pdf : null,
+
+        kw_size: isSolarService && kwSize ? Number(kwSize) : null,
+        system_type: isSolarService ? systemType.trim() || null : null,
+        includes: isServiceCategory ? includesText.trim() || null : null,
+        quotation_pdf: isServiceCategory ? quotation_pdf : null,
+        service_type: isServiceCategory ? serviceType : null,
       };
 
       await updateWithFallback(payload);
@@ -519,7 +573,14 @@ export default function AdminProductEditPage() {
     const exists = categories.some((c) => c.slug === categorySlug);
     const extra =
       !exists && categorySlug
-        ? [{ id: "missing", slug: categorySlug, label: `${categorySlug} (Missing)`, is_active: false }]
+        ? [
+            {
+              id: "missing",
+              slug: categorySlug,
+              label: `${categorySlug} (Missing)`,
+              is_active: false,
+            },
+          ]
         : [];
 
     return { active, inactive, extra };
@@ -578,7 +639,11 @@ export default function AdminProductEditPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-              placeholder={isSolar ? "e.g., 8KW Hybrid Solar Installation" : "e.g., Ryzen 5 5600"}
+              placeholder={
+                isServiceCategory
+                  ? "e.g., CCTV Installation Package"
+                  : "e.g., Ryzen 5 5600"
+              }
             />
           </div>
 
@@ -639,7 +704,22 @@ export default function AdminProductEditPage() {
             </div>
           ) : null}
 
-          {isSolar ? (
+          {isServiceCategory ? (
+            <div className="grid gap-2">
+              <label className="text-sm font-semibold">Service Type</label>
+              <select
+                value={serviceType}
+                onChange={(e) => setServiceType(e.target.value)}
+                className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+              >
+                <option value="solar">Solar</option>
+                <option value="cctv">CCTV</option>
+                <option value="other">Other Service</option>
+              </select>
+            </div>
+          ) : null}
+
+          {isSolarService ? (
             <div className="grid gap-4 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
               <div className="text-sm font-bold">Solar Package Details</div>
 
@@ -671,14 +751,32 @@ export default function AdminProductEditPage() {
                   </select>
                 </div>
               </div>
+            </div>
+          ) : null}
+
+          {isServiceCategory ? (
+            <div className="grid gap-4 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+              <div className="text-sm font-bold">
+                {serviceType === "cctv"
+                  ? "CCTV Service Details"
+                  : serviceType === "solar"
+                  ? "Additional Service Details"
+                  : "Service Details"}
+              </div>
 
               <div className="grid gap-2">
-                <label className="text-sm font-semibold">Package Inclusions</label>
+                <label className="text-sm font-semibold">
+                  {serviceType === "cctv" ? "Included Items / Scope" : "Details / Inclusions"}
+                </label>
                 <textarea
                   value={includesText}
                   onChange={(e) => setIncludesText(e.target.value)}
                   className="min-h-[100px] rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-                  placeholder="e.g., 620W solar panels, hybrid inverter, battery, installation materials, labor..."
+                  placeholder={
+                    serviceType === "cctv"
+                      ? "e.g., 4-channel DVR, 2 cameras, cabling, installation..."
+                      : "Enter service details..."
+                  }
                 />
               </div>
 
@@ -778,7 +876,9 @@ export default function AdminProductEditPage() {
                 )}
               </select>
 
-              <div className="text-[11px] text-black/50">Categories come from Admin → Categories.</div>
+              <div className="text-[11px] text-black/50">
+                Categories come from Admin → Categories.
+              </div>
             </div>
 
             <div className="grid gap-2">
@@ -805,7 +905,11 @@ export default function AdminProductEditPage() {
           </div>
 
           <label className="inline-flex items-center gap-2 text-sm text-black/70">
-            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+            />
             Active
           </label>
 

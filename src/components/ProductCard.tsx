@@ -8,6 +8,13 @@ type ProfileInfo = {
   approval_status: string;
 };
 
+function normalizeServiceType(value?: string | null) {
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "solar") return "solar";
+  if (v === "cctv") return "cctv";
+  return "other";
+}
+
 export default function ProductCard({
   item,
   onView,
@@ -72,14 +79,12 @@ export default function ProductCard({
     };
   }, []);
 
-  const isServiceQuote =
-    item.category_slug === "services" && Number(item.price) === 0;
+  const isService = item.category_slug === "services";
+  const serviceType = isService ? normalizeServiceType(item.service_type) : "other";
+  const isSolarService = isService && serviceType === "solar";
+  const isCctvService = isService && serviceType === "cctv";
 
-  const isSolarService =
-    item.category_slug === "services" &&
-    (typeof item.kw_size === "number" ||
-      !!item.system_type ||
-      !!item.quotation_pdf);
+  const isServiceQuote = isService && Number(item.price) === 0;
 
   const categoryName =
     item.category_slug === "cpu"
@@ -116,6 +121,14 @@ export default function ProductCard({
 
   const shouldShowMeta =
     (isRam || isMonitor) && (primaryMetaValue || partneredBrandValue);
+
+  const serviceLabel = isSolarService
+    ? "Solar Service"
+    : isCctvService
+    ? "CCTV Service"
+    : isService
+    ? "Service"
+    : "";
 
   return (
     <button
@@ -202,10 +215,8 @@ export default function ProductCard({
                 </div>
               )}
 
-              {item.category_slug === "services" ? (
-                <div className="text-xs text-black/50">
-                  {isSolarService ? "Solar Service" : "Service"}
-                </div>
+              {isService ? (
+                <div className="text-xs text-black/50">{serviceLabel}</div>
               ) : !canViewPrice && !checkingAccess ? (
                 <div className="text-xs text-black/50">
                   Approved accounts only

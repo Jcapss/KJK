@@ -1,4 +1,3 @@
-// src/pages/AdminProductsPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -19,7 +18,16 @@ type Product = {
   kw_size?: number | null;
   system_type?: string | null;
   quotation_pdf?: string | null;
+  includes?: string | null;
+  service_type?: string | null;
 };
+
+function normalizeServiceType(value?: string | null) {
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "solar") return "solar";
+  if (v === "cctv") return "cctv";
+  return "other";
+}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -86,7 +94,7 @@ export default function AdminProductsPage() {
     if (q) {
       list = list.filter((p) => {
         const hay =
-          `${p.name} ${p.description} ${p.category_slug} ${p.system_type ?? ""} ${p.kw_size ?? ""}`.toLowerCase();
+          `${p.name} ${p.description} ${p.category_slug} ${p.system_type ?? ""} ${p.kw_size ?? ""} ${p.service_type ?? ""} ${p.includes ?? ""}`.toLowerCase();
         return hay.includes(q);
       });
     }
@@ -102,11 +110,20 @@ export default function AdminProductsPage() {
   function getProductMeta(p: Product) {
     if (p.category_slug !== "services") return null;
 
-    const parts: string[] = [];
-    if (typeof p.kw_size === "number") parts.push(`${p.kw_size}KW`);
-    if (p.system_type) parts.push(p.system_type);
+    const serviceType = normalizeServiceType(p.service_type);
 
-    return parts.length ? parts.join(" • ") : "Service";
+    if (serviceType === "solar") {
+      const parts: string[] = [];
+      if (typeof p.kw_size === "number") parts.push(`${p.kw_size}KW`);
+      if (p.system_type) parts.push(p.system_type);
+      return parts.length ? parts.join(" • ") : "Solar Service";
+    }
+
+    if (serviceType === "cctv") {
+      return "CCTV Service";
+    }
+
+    return "Service";
   }
 
   return (
@@ -117,31 +134,27 @@ export default function AdminProductsPage() {
           <div className="text-sm text-black/60">Add, edit, and delete products.</div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={fetchProducts}
-            className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5"
-            type="button"
-          >
-            Refresh
-          </button>
-
-          <button
-            onClick={() => navigate("/admin/products/new")}
-            className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-            type="button"
-          >
-            + Add Product
-          </button>
-        </div>
+        <button
+          onClick={() => navigate("/admin/products/new")}
+          className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          type="button"
+        >
+          + Add Product
+        </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      {err ? (
+        <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-50 p-4 text-sm text-red-700">
+          {err}
+        </div>
+      ) : null}
+
+      <div className="mt-5 grid gap-3 rounded-2xl border border-black/10 bg-white p-4 sm:grid-cols-[1fr_auto]">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name / category / description..."
-          className="w-full sm:w-[360px] rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+          placeholder="Search by product name, description, category, service type..."
+          className="w-full rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
         />
 
         <label className="inline-flex items-center gap-2 text-sm text-black/70">
@@ -152,19 +165,9 @@ export default function AdminProductsPage() {
           />
           Active only
         </label>
-
-        <div className="text-sm text-black/50">
-          {loading ? "Loading..." : `Showing ${filteredProducts.length} item(s)`}
-        </div>
       </div>
 
-      {err ? (
-        <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-50 p-4 text-sm text-red-700">
-          {err}
-        </div>
-      ) : null}
-
-      <div className="mt-5 grid gap-3 md:hidden">
+      <div className="mt-5 grid gap-4 md:hidden">
         {loading ? (
           <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
             Loading products...
@@ -177,10 +180,10 @@ export default function AdminProductsPage() {
           filteredProducts.map((p) => (
             <div
               key={p.id}
-              className="rounded-2xl border border-black/10 bg-white p-4"
+              className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm"
             >
-              <div className="flex items-start gap-3">
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-black/5">
+              <div className="flex gap-3">
+                <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-black/5">
                   {p.image_url ? (
                     <img
                       src={p.image_url}
@@ -188,29 +191,24 @@ export default function AdminProductsPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="grid h-full w-full place-items-center text-xl">
-                      📦
-                    </div>
+                    <span className="text-2xl">📦</span>
                   )}
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-semibold leading-tight">{p.name}</div>
+                      <div className="truncate font-semibold">{p.name}</div>
                       {getProductMeta(p) ? (
-                        <div className="mt-1 text-xs font-semibold text-green-700">
+                        <div className="text-xs font-semibold text-green-700">
                           {getProductMeta(p)}
                         </div>
                       ) : null}
-                      <div className="mt-1 text-xs text-black/60 line-clamp-2">
-                        {p.description}
-                      </div>
                     </div>
 
                     <span
                       className={[
-                        "shrink-0 inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                        "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
                         p.is_active
                           ? "bg-green-100 text-green-700"
                           : "bg-gray-100 text-gray-600",
@@ -218,6 +216,10 @@ export default function AdminProductsPage() {
                     >
                       {p.is_active ? "Active" : "Inactive"}
                     </span>
+                  </div>
+
+                  <div className="mt-2 line-clamp-2 text-sm text-black/60">
+                    {p.description}
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
@@ -253,7 +255,7 @@ export default function AdminProductsPage() {
         )}
       </div>
 
-      <div className="mt-5 hidden md:block overflow-hidden rounded-2xl border border-black/10 bg-white">
+      <div className="mt-5 hidden overflow-hidden rounded-2xl border border-black/10 bg-white md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-black/5 text-xs uppercase text-black/60">
@@ -304,7 +306,7 @@ export default function AdminProductsPage() {
                               {getProductMeta(p)}
                             </div>
                           ) : null}
-                          <div className="truncate text-xs text-black/60 max-w-[340px]">
+                          <div className="max-w-[340px] truncate text-xs text-black/60">
                             {p.description}
                           </div>
                         </div>

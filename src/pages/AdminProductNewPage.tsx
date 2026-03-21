@@ -106,6 +106,13 @@ function normalizeRamGeneration(input: string) {
   return CANON[upper] ?? cleaned.toUpperCase();
 }
 
+function normalizeServiceType(value?: string | null) {
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "solar") return "solar";
+  if (v === "cctv") return "cctv";
+  return "other";
+}
+
 export default function AdminProductNewPage() {
   const nav = useNavigate();
 
@@ -122,6 +129,7 @@ export default function AdminProductNewPage() {
   const [systemType, setSystemType] = useState("");
   const [includesText, setIncludesText] = useState("");
   const [quotationFile, setQuotationFile] = useState<File | null>(null);
+  const [serviceType, setServiceType] = useState("other");
 
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [catsLoading, setCatsLoading] = useState(true);
@@ -159,7 +167,7 @@ export default function AdminProductNewPage() {
     [normalizedCategory]
   );
 
-  const isSolar = useMemo(
+  const isServiceCategory = useMemo(
     () => normalizedCategory === "services",
     [normalizedCategory]
   );
@@ -173,6 +181,8 @@ export default function AdminProductNewPage() {
     () => normalizedCategory === "monitor",
     [normalizedCategory]
   );
+
+  const isSolarService = isServiceCategory && serviceType === "solar";
 
   const brandLabel = isAccessories
     ? "Peripheral Type"
@@ -190,8 +200,8 @@ export default function AdminProductNewPage() {
     ? "e.g., Keyboard, Mouse, Headset"
     : isRam
     ? "e.g., DDR4, DDR5"
-    : isSolar
-    ? "e.g., Solar Package"
+    : isServiceCategory
+    ? "e.g., Solar Package, CCTV Package, Installation Service"
     : isMonitor
     ? "e.g., Nvision, ASUS, Acer, MSI"
     : "e.g., AMD, NVIDIA, Intel, ASUS, Acer";
@@ -203,6 +213,23 @@ export default function AdminProductNewPage() {
       setPartnerBrandOptions([]);
     }
   }, [supportsPartnerBrand]);
+
+  useEffect(() => {
+    if (!isServiceCategory) {
+      setServiceType("other");
+      setKwSize("");
+      setSystemType("");
+      setIncludesText("");
+      setQuotationFile(null);
+    }
+  }, [isServiceCategory]);
+
+  useEffect(() => {
+    if (!isSolarService) {
+      setKwSize("");
+      setSystemType("");
+    }
+  }, [isSolarService]);
 
   useEffect(() => {
     if (!imageFile) {
@@ -383,7 +410,15 @@ export default function AdminProductNewPage() {
     const { error } = await supabase.from("products").insert(payload);
     if (!error) return;
 
-    const columnsToTry = ["brand", "partner_brand", "kw_size", "system_type", "includes", "quotation_pdf"];
+    const columnsToTry = [
+      "brand",
+      "partner_brand",
+      "kw_size",
+      "system_type",
+      "includes",
+      "quotation_pdf",
+      "service_type",
+    ];
 
     let currentPayload = { ...payload };
     for (const col of columnsToTry) {
@@ -443,10 +478,12 @@ export default function AdminProductNewPage() {
         category_slug: categorySlug,
         image_url,
         is_active: isActive,
-        kw_size: isSolar && kwSize ? Number(kwSize) : null,
-        system_type: isSolar ? systemType.trim() || null : null,
-        includes: isSolar ? includesText.trim() || null : null,
-        quotation_pdf: isSolar ? quotation_pdf : null,
+
+        kw_size: isSolarService && kwSize ? Number(kwSize) : null,
+        system_type: isSolarService ? systemType.trim() || null : null,
+        includes: isServiceCategory ? includesText.trim() || null : null,
+        quotation_pdf: isServiceCategory ? quotation_pdf : null,
+        service_type: isServiceCategory ? serviceType : null,
       };
 
       await insertWithFallback(payload);
@@ -506,7 +543,11 @@ export default function AdminProductNewPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-            placeholder={isSolar ? "e.g., 8KW Hybrid Solar Installation" : "e.g., Ryzen 5 5600"}
+            placeholder={
+              isServiceCategory
+                ? "e.g., CCTV Installation Package"
+                : "e.g., Ryzen 5 5600"
+            }
           />
         </div>
 
@@ -527,8 +568,8 @@ export default function AdminProductNewPage() {
               ? "For RAM, use the generation here such as DDR4 or DDR5."
               : isMonitor
               ? "For Monitor, use the product brand here."
-              : isSolar
-              ? "For solar services, this can be a general label like Solar Package."
+              : isServiceCategory
+              ? "For services, use a general label like Solar Package, CCTV Package, or Installation Service."
               : "For GPU/Motherboard, this is usually the chip brand. For laptops, this can be the general or main brand if needed."}
           </div>
         </div>
@@ -578,7 +619,22 @@ export default function AdminProductNewPage() {
           </div>
         ) : null}
 
-        {isSolar ? (
+        {isServiceCategory ? (
+          <div className="grid gap-2">
+            <label className="text-sm font-semibold">Service Type</label>
+            <select
+              value={serviceType}
+              onChange={(e) => setServiceType(normalizeServiceType(e.target.value))}
+              className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+            >
+              <option value="solar">Solar</option>
+              <option value="cctv">CCTV</option>
+              <option value="other">Other Service</option>
+            </select>
+          </div>
+        ) : null}
+
+        {isSolarService ? (
           <div className="grid gap-4 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
             <div className="text-sm font-bold">Solar Package Details</div>
 
@@ -610,14 +666,32 @@ export default function AdminProductNewPage() {
                 </select>
               </div>
             </div>
+          </div>
+        ) : null}
+
+        {isServiceCategory ? (
+          <div className="grid gap-4 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+            <div className="text-sm font-bold">
+              {serviceType === "cctv"
+                ? "CCTV Service Details"
+                : serviceType === "solar"
+                ? "Additional Service Details"
+                : "Service Details"}
+            </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-semibold">Package Inclusions</label>
+              <label className="text-sm font-semibold">
+                {serviceType === "cctv" ? "Included Items / Scope" : "Details / Inclusions"}
+              </label>
               <textarea
                 value={includesText}
                 onChange={(e) => setIncludesText(e.target.value)}
                 className="min-h-[100px] rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-                placeholder="e.g., 620W solar panels, hybrid inverter, battery, installation materials, labor..."
+                placeholder={
+                  serviceType === "cctv"
+                    ? "e.g., 4-channel DVR, 2 cameras, cabling, installation..."
+                    : "Enter service details..."
+                }
               />
             </div>
 
@@ -630,7 +704,7 @@ export default function AdminProductNewPage() {
                 className="block w-full rounded-xl border border-black/10 bg-white px-4 py-2 text-sm"
               />
               <div className="text-xs text-black/50">
-                Upload the official quotation file for this solar package.
+                Upload the official quotation file for this service.
               </div>
             </div>
           </div>

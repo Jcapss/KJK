@@ -65,6 +65,13 @@ function slugToCategoryName(slug: CategorySlug): CategoryName {
   }
 }
 
+function normalizeServiceType(value?: string | null) {
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "solar") return "solar";
+  if (v === "cctv") return "cctv";
+  return "other";
+}
+
 export default function ProductPage() {
   const nav = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -280,13 +287,10 @@ export default function ProductPage() {
 
   const price = Number(item.price);
   const isQuote = item.category_slug === "services" && price <= 0;
-
-  const isSolarService =
-    item.category_slug === "services" &&
-    (typeof item.kw_size === "number" ||
-      !!item.system_type ||
-      !!item.includes ||
-      !!item.quotation_pdf);
+  const isService = item.category_slug === "services";
+  const serviceType = isService ? normalizeServiceType(item.service_type) : "other";
+  const isSolarService = isService && serviceType === "solar";
+  const isCctvService = isService && serviceType === "cctv";
 
   const canViewPrice =
     !!profile &&
@@ -299,6 +303,16 @@ export default function ProductPage() {
       profile.approval_status === "rejected");
 
   const canAddToCart = canViewPrice;
+
+  const serviceStatusLabel = isSolarService
+    ? "Solar Service"
+    : isCctvService
+    ? "CCTV Service"
+    : isService
+    ? "Service"
+    : item.stock > 0
+    ? `In Stock (${item.stock})`
+    : "AVAILABLE";
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-black">
@@ -407,6 +421,62 @@ export default function ProductPage() {
                   </div>
                 ) : null}
               </div>
+            ) : isCctvService ? (
+              <div className="mt-5 grid gap-3 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                <div className="text-sm font-bold">CCTV Service Details</div>
+
+                {item.includes ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+                      Included Items / Scope
+                    </div>
+                    <div className="text-sm text-black/70 whitespace-pre-line">
+                      {item.includes}
+                    </div>
+                  </div>
+                ) : null}
+
+                {item.quotation_pdf ? (
+                  <div className="pt-1">
+                    <a
+                      href={item.quotation_pdf}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5"
+                    >
+                      View Quotation PDF
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            ) : isService && (item.includes || item.quotation_pdf) ? (
+              <div className="mt-5 grid gap-3 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                <div className="text-sm font-bold">Service Details</div>
+
+                {item.includes ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+                      Details
+                    </div>
+                    <div className="text-sm text-black/70 whitespace-pre-line">
+                      {item.includes}
+                    </div>
+                  </div>
+                ) : null}
+
+                {item.quotation_pdf ? (
+                  <div className="pt-1">
+                    <a
+                      href={item.quotation_pdf}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5"
+                    >
+                      View Quotation PDF
+                    </a>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
 
             <div className="mt-5">
@@ -425,20 +495,14 @@ export default function ProductPage() {
               <div
                 className={[
                   "mt-2 text-xs font-semibold uppercase tracking-wide",
-                  item.category_slug === "services"
+                  isService
                     ? "text-black/50"
                     : item.stock > 0
                     ? "text-black/50"
                     : "text-green-600",
                 ].join(" ")}
               >
-                {item.category_slug === "services"
-                  ? isSolarService
-                    ? "Solar Service"
-                    : "Service"
-                  : item.stock > 0
-                  ? `In Stock (${item.stock})`
-                  : "AVAILABLE"}
+                {serviceStatusLabel}
               </div>
 
               {canAddToCart ? (

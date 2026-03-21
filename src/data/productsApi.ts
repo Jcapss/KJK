@@ -2,12 +2,10 @@
 import { supabase } from "../lib/supabase";
 import type { ProductRow } from "../types/db";
 
-/** escape commas for .or() filters */
 function escOrValue(v: string) {
   return v.replaceAll(",", "\\,");
 }
 
-/** Normalize label for UI (keeps brands consistent) */
 function normalizeBrandLabel(raw: string) {
   const s = String(raw ?? "").trim().replace(/\s+/g, " ");
   if (!s) return "";
@@ -39,11 +37,7 @@ function normalizeBrandLabel(raw: string) {
     .join(" ");
 }
 
-/** helper: apply category filter that supports string OR string[] */
-function applyCategoryFilter(
-  query: any,
-  category?: string | string[]
-) {
+function applyCategoryFilter(query: any, category?: string | string[]) {
   const catArg = category;
 
   if (Array.isArray(catArg)) {
@@ -59,18 +53,38 @@ function applyCategoryFilter(
   return query;
 }
 
+const PRODUCT_SELECT = `
+  id,
+  name,
+  description,
+  category_slug,
+  brand,
+  partner_brand,
+  price,
+  stock,
+  badge,
+  icon,
+  image_url,
+  images,
+  kw_size,
+  system_type,
+  includes,
+  quotation_pdf,
+  service_type,
+  is_active,
+  created_at
+`;
+
 export async function fetchProducts(args?: {
   category?: string | string[];
   q?: string;
   brands?: string[];
   partnerBrand?: string;
-  kw?: number; // ✅ NEW
+  kw?: number;
 }): Promise<ProductRow[]> {
   let query = supabase
     .from("products")
-    .select(
-      "id,name,description,category_slug,brand,partner_brand,price,stock,badge,icon,image_url,images,kw_size,system_type,includes,quotation_pdf,is_active,created_at"
-    )
+    .select(PRODUCT_SELECT)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -86,9 +100,7 @@ export async function fetchProducts(args?: {
     .filter(Boolean);
 
   if (brands.length > 0) {
-    const orStr = brands
-      .map((b) => `brand.ilike.${escOrValue(b)}`)
-      .join(",");
+    const orStr = brands.map((b) => `brand.ilike.${escOrValue(b)}`).join(",");
     query = query.or(orStr);
   }
 
@@ -97,7 +109,6 @@ export async function fetchProducts(args?: {
     query = query.ilike("partner_brand", pb);
   }
 
-  // ✅ solar KW filter
   if (typeof args?.kw === "number") {
     query = query.eq("kw_size", args.kw);
   }
@@ -111,9 +122,7 @@ export async function fetchProducts(args?: {
 export async function fetchProductById(id: string): Promise<ProductRow | null> {
   const { data, error } = await supabase
     .from("products")
-    .select(
-      "id,name,description,category_slug,brand,partner_brand,price,stock,badge,icon,image_url,images,kw_size,system_type,includes,quotation_pdf,is_active,created_at"
-    )
+    .select(PRODUCT_SELECT)
     .eq("id", id)
     .maybeSingle();
 
@@ -121,7 +130,6 @@ export async function fetchProductById(id: string): Promise<ProductRow | null> {
   return (data ?? null) as ProductRow | null;
 }
 
-/** Get distinct PRODUCT BRANDS / PERIPHERALS for checkbox list */
 export async function fetchBrands(args?: {
   category?: string | string[];
 }): Promise<string[]> {
@@ -149,7 +157,6 @@ export async function fetchBrands(args?: {
   return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
 }
 
-/** Get distinct PARTNER BRANDS for dropdown */
 export async function fetchPartnerBrands(args?: {
   category?: string | string[];
 }): Promise<string[]> {
