@@ -3,6 +3,9 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
+// ✅ IMPORT YOUR LOGO
+import logo from "../assets/kjk-logo.jpg";
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const loc = useLocation();
   const nav = useNavigate();
@@ -30,12 +33,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const Sidebar = (
     <aside className="rounded-3xl bg-white p-5 shadow-sm border border-black/10">
+      
+      {/* ✅ LOGO HEADER */}
       <div className="flex items-center gap-3">
-        <div className="h-12 w-12 rounded-2xl bg-black text-white grid place-items-center font-black">
-          K
-        </div>
+        <img
+          src={logo}
+          alt="KJK Logo"
+          className="h-12 w-12 rounded-2xl object-contain bg-white p-1"
+        />
         <div className="leading-tight">
-          <div className="font-extrabold">KJK TechShop</div>
+          <div className="font-extrabold">KJK TechShop Computer Store</div>
           <div className="text-xs text-black/60">Admin Panel</div>
         </div>
       </div>
@@ -61,7 +68,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="text-lg">📦</span> Products
         </Link>
 
-        {/* ✅ NEW USERS PAGE */}
         <Link
           to="/admin/users"
           className={[
@@ -116,11 +122,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-[#f6f7fb] text-black">
       <div className="mx-auto max-w-7xl px-4 py-4 sm:py-6">
 
+        {/* ✅ MOBILE HEADER */}
         <div className="lg:hidden mb-4 flex items-center justify-between rounded-3xl bg-white p-3 shadow-sm border border-black/10">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-black text-white grid place-items-center font-black">
-              K
-            </div>
+            <img
+              src={logo}
+              alt="KJK Logo"
+              className="h-10 w-10 rounded-2xl object-contain bg-white p-1"
+            />
             <div className="leading-tight">
               <div className="text-sm font-extrabold">Admin</div>
               <div className="text-xs text-black/60">KJK TechShop</div>

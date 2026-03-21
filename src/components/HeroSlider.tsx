@@ -24,8 +24,8 @@ export type HeroSlide = {
 };
 
 // CHANGE to your real page
-const FB_PAGE_URL = "https://www.facebook.com/kjktechshop";
-const FB_MESSAGE_URL = "https://www.facebook.com/kjktechshop";
+const FB_PAGE_URL = "https://www.facebook.com/profile.php?id=100092520544908";
+const FB_MESSAGE_URL = "https://www.facebook.com/profile.php?id=100092520544908";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));

@@ -283,7 +283,7 @@ const HomePage = () => {
       <footer id="footer" className="mt-16 border-t border-black/10 bg-white">
         <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <div className="text-lg font-extrabold">KJK TechShop</div>
+            <div className="text-lg font-extrabold">KJK TechShop Computer Store</div>
             <p className="mt-2 text-sm text-black/60">
               Computer Parts • Laptops • CCTV • Services
             </p>
@@ -308,7 +308,7 @@ const HomePage = () => {
                 <span className="font-semibold text-black">Facebook:</span>{" "}
                 <a
                   className="hover:underline"
-                  href="https://www.facebook.com/kjktechshop"
+                  href="https://www.facebook.com/profile.php?id=100092520544908"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -344,7 +344,7 @@ const HomePage = () => {
 
         <div className="border-t border-black/10">
           <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-4 text-xs text-black/50 sm:flex-row sm:items-center sm:justify-between">
-            <span>© {new Date().getFullYear()} KJK TechShop. All rights reserved.</span>
+            <span>© {new Date().getFullYear()} KJK TechShop Computer Store. All rights reserved.</span>
           </div>
         </div>
       </footer>

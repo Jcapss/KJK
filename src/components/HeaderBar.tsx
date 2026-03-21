@@ -163,7 +163,7 @@ export default function HeaderBar({
 
             <div className="leading-tight">
               <div className="text-sm font-extrabold tracking-tight">
-                KJK TechShop
+                KJK TechShop Computer Store
               </div>
               <div className="text-xs text-black/60">
                 Parts • Laptops • CCTV • Services
