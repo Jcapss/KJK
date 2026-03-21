@@ -258,7 +258,7 @@ const HomePage = () => {
         {slidesErr ? (
           <div className="p-4 text-sm text-red-600">{slidesErr}</div>
         ) : (
-          <HeroSlider slides={slides} autoPlay={false} />
+          <HeroSlider slides={slides} autoPlay={true} />
         )}
       </section>
 

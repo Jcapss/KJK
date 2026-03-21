@@ -4,26 +4,18 @@ export type HeroSlide = {
   id: string;
   title: string;
   subtitle?: string | null;
-
-  // ✅ admin customizable small line
   note_text?: string | null;
-
   image: string;
   ctaText?: string | null;
   ctaHref?: string | null;
-
-  // ✅ customization
-  overlay_strength?: number; // 0-80
+  overlay_strength?: number;
   align?: "left" | "center" | "right";
   show_fb_buttons?: boolean;
-
-  // ✅ per-text colors
   title_color?: string | null;
   subtitle_color?: string | null;
   note_color?: string | null;
 };
 
-// CHANGE to your real page
 const FB_PAGE_URL = "https://www.facebook.com/profile.php?id=100092520544908";
 const FB_MESSAGE_URL = "https://www.facebook.com/profile.php?id=100092520544908";
 
@@ -34,41 +26,51 @@ function clamp(n: number, min: number, max: number) {
 export default function HeroSlider({
   slides,
   autoPlay = true,
-  intervalMs = 5000,
+  intervalMs = 4000,
 }: {
   slides: HeroSlide[];
   autoPlay?: boolean;
   intervalMs?: number;
 }) {
   const [index, setIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
 
   const safeSlides = useMemo(() => slides.filter(Boolean), [slides]);
-  const active = safeSlides[index];
-
-  function prev() {
-    setIndex((i) => (i - 1 + safeSlides.length) % safeSlides.length);
-  }
-
-  function next() {
-    setIndex((i) => (i + 1) % safeSlides.length);
-  }
 
   useEffect(() => {
-    if (!autoPlay || safeSlides.length <= 1) return;
-    const t = setInterval(() => next(), intervalMs);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPlay, intervalMs, safeSlides.length]);
-
-  // ✅ keep index valid when slides change (important after admin edits)
-  useEffect(() => {
-    if (!safeSlides.length) return;
-    setIndex((i) => clamp(i, 0, safeSlides.length - 1));
+    if (!safeSlides.length) {
+      setIndex(0);
+      return;
+    }
+    setIndex((prev) => clamp(prev, 0, safeSlides.length - 1));
   }, [safeSlides.length]);
+
+  useEffect(() => {
+    if (!autoPlay || isHovered || safeSlides.length <= 1) return;
+
+    const timer = window.setInterval(() => {
+      setIndex((prev) => (prev + 1) % safeSlides.length);
+    }, intervalMs);
+
+    return () => window.clearInterval(timer);
+  }, [autoPlay, isHovered, intervalMs, safeSlides.length]);
 
   if (!safeSlides.length) return null;
 
-  const overlayPct = clamp(Number(active.overlay_strength ?? 35), 0, 80); // 0-80
+  const active = safeSlides[index];
+  if (!active) return null;
+
+  function prev() {
+    if (safeSlides.length <= 1) return;
+    setIndex((prev) => (prev - 1 + safeSlides.length) % safeSlides.length);
+  }
+
+  function next() {
+    if (safeSlides.length <= 1) return;
+    setIndex((prev) => (prev + 1) % safeSlides.length);
+  }
+
+  const overlayPct = clamp(Number(active.overlay_strength ?? 35), 0, 80);
   const overlayAlpha = overlayPct / 100;
 
   const align = active.align ?? "left";
@@ -80,17 +82,19 @@ export default function HeroSlider({
       : "items-center justify-start text-left";
 
   const titleColor =
-  active.title_color && active.title_color.trim() ? active.title_color : "#FFFFFF";
+    active.title_color && active.title_color.trim()
+      ? active.title_color
+      : "#FFFFFF";
 
-const subtitleColor =
-  active.subtitle_color && active.subtitle_color.trim()
-    ? active.subtitle_color
-    : "rgba(229,231,235,0.95)";
+  const subtitleColor =
+    active.subtitle_color && active.subtitle_color.trim()
+      ? active.subtitle_color
+      : "rgba(229,231,235,0.95)";
 
-const noteColor =
-  active.note_color && active.note_color.trim()
-    ? active.note_color
-    : "rgba(209,213,219,0.9)";
+  const noteColor =
+    active.note_color && active.note_color.trim()
+      ? active.note_color
+      : "rgba(209,213,219,0.9)";
 
   const noteText =
     (active.note_text ?? "").trim() ||
@@ -99,39 +103,43 @@ const noteColor =
   const showFb = active.show_fb_buttons ?? true;
 
   return (
-    <div className="relative w-full overflow-hidden bg-black">
+    <div
+      className="relative w-full overflow-hidden bg-black"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div className="relative h-[280px] sm:h-[420px] md:h-[520px]">
-        {/* ✅ Layer 1: blurred full background */}
-        <img
-          src={active.image}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover blur-2xl scale-110 opacity-80"
-          loading="lazy"
-        />
+        <div className="absolute inset-0 transition-opacity duration-700">
+          <img
+            key={`bg-${active.id}-${index}`}
+            src={active.image}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-80 blur-2xl"
+            loading="lazy"
+          />
 
-        {/* ✅ overlay strength from admin */}
-        <div
-          className="absolute inset-0"
-          style={{ background: `rgba(0,0,0,${overlayAlpha})` }}
-        />
+          <div
+            className="absolute inset-0"
+            style={{ background: `rgba(0,0,0,${overlayAlpha})` }}
+          />
 
-        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent" />
 
-        {/* ✅ Layer 2: sharp banner (not cut) */}
-        <img
-          src={active.image}
-          alt={active.title}
-          className="absolute inset-0 h-full w-full object-contain"
-          loading="lazy"
-        />
+          <img
+            key={`main-${active.id}-${index}`}
+            src={active.image}
+            alt={active.title}
+            className="absolute inset-0 h-full w-full object-contain transition-opacity duration-700"
+            loading="lazy"
+          />
+        </div>
 
-        {/* Content */}
         <div className={`absolute inset-0 flex ${alignClass}`}>
           <div className="mx-auto w-full max-w-7xl px-4 sm:px-8">
             <div className="max-w-3xl">
               <div
-                className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[0.95] drop-shadow"
+                className="text-3xl font-black leading-[0.95] tracking-tight drop-shadow sm:text-5xl md:text-6xl"
                 style={{ color: titleColor }}
               >
                 {active.title}
@@ -139,17 +147,16 @@ const noteColor =
 
               {active.subtitle ? (
                 <div
-                  className="mt-3 text-sm sm:text-base drop-shadow"
+                  className="mt-3 text-sm drop-shadow sm:text-base"
                   style={{ color: subtitleColor }}
                 >
                   {active.subtitle}
                 </div>
               ) : null}
 
-              {/* ✅ note text + color controlled by admin */}
               {noteText ? (
                 <div
-                  className="mt-2 text-xs sm:text-sm drop-shadow"
+                  className="mt-2 text-xs drop-shadow sm:text-sm"
                   style={{ color: noteColor }}
                 >
                   {noteText}
@@ -192,7 +199,6 @@ const noteColor =
           </div>
         </div>
 
-        {/* Prev/Next */}
         <button
           onClick={prev}
           type="button"
@@ -201,6 +207,7 @@ const noteColor =
         >
           ‹
         </button>
+
         <button
           onClick={next}
           type="button"
@@ -210,8 +217,7 @@ const noteColor =
           ›
         </button>
 
-        {/* Dots */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
           {safeSlides.map((s, i) => (
             <button
               key={s.id}
