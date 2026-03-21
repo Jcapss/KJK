@@ -13,7 +13,7 @@ type CategoryRow = {
 type BrandRow = {
   id: string;
   name: string;
-  category_slug: string; // 'gpu' | 'motherboard' | 'laptop' | 'all'
+  category_slug: string; // 'gpu' | 'motherboard' | 'laptop' | 'accessories' | 'all'
   is_active: boolean;
 };
 
@@ -29,7 +29,7 @@ function looksLikeMissingColumn(err: any, column: string) {
   return msg.includes(column.toLowerCase()) && msg.includes("does not exist");
 }
 
-/** ✅ minimal brand normalize */
+/** minimal brand normalize */
 function normalizeBrand(input: string) {
   const cleaned = (input ?? "").trim().replace(/\s+/g, " ");
   if (!cleaned) return "";
@@ -59,6 +59,11 @@ function normalizeBrand(input: string) {
     microsoft: "Microsoft",
     razer: "Razer",
     thinkpad: "ThinkPad",
+    logitech: "Logitech",
+    redragon: "Redragon",
+    hyperx: "HyperX",
+    steelseries: "SteelSeries",
+    corsair: "Corsair",
   };
 
   return CANON[key] ?? cleaned;
@@ -68,25 +73,39 @@ function normalizePartnerBrand(input: string) {
   return normalizeBrand(input);
 }
 
+function normalizePeripheralType(input: string) {
+  const cleaned = (input ?? "").trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+
+  const key = cleaned.toLowerCase();
+  const CANON: Record<string, string> = {
+    keyboard: "Keyboard",
+    mouse: "Mouse",
+    headset: "Headset",
+    speaker: "Speaker",
+    webcam: "Webcam",
+    microphone: "Microphone",
+    mousepad: "Mousepad",
+  };
+
+  return CANON[key] ?? cleaned;
+}
+
 export default function AdminProductEditPage() {
   const nav = useNavigate();
   const { id } = useParams<{ id: string }>();
 
   const [loading, setLoading] = useState(true);
 
-  // categories from DB
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [catsLoading, setCatsLoading] = useState(true);
 
-  // partner brand options
   const [partnerBrandOptions, setPartnerBrandOptions] = useState<BrandRow[]>([]);
   const [partnerBrandsLoading, setPartnerBrandsLoading] = useState(false);
 
-  // inline add partner brand
   const [newPartnerBrand, setNewPartnerBrand] = useState("");
   const [addingPartnerBrand, setAddingPartnerBrand] = useState(false);
 
-  // form states
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [partnerBrand, setPartnerBrand] = useState("");
@@ -96,7 +115,6 @@ export default function AdminProductEditPage() {
   const [categorySlug, setCategorySlug] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
 
-  // image
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
@@ -106,10 +124,14 @@ export default function AdminProductEditPage() {
 
   const supportsPartnerBrand = useMemo(() => {
     const s = categorySlug.trim().toLowerCase();
-    return s === "gpu" || s === "motherboard" || s === "laptop";
+    return s === "gpu" || s === "motherboard" || s === "laptop" || s === "accessories";
   }, [categorySlug]);
 
-  // ✅ reset partner brand + UI bits when switching away from supported categories
+  const isAccessories = useMemo(
+    () => categorySlug.trim().toLowerCase() === "accessories",
+    [categorySlug]
+  );
+
   useEffect(() => {
     if (!supportsPartnerBrand) {
       setPartnerBrand("");
@@ -118,7 +140,6 @@ export default function AdminProductEditPage() {
     }
   }, [supportsPartnerBrand]);
 
-  // preview for newly selected file
   useEffect(() => {
     if (!imageFile) {
       setImagePreview("");
@@ -129,7 +150,6 @@ export default function AdminProductEditPage() {
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
-  // ✅ load categories
   useEffect(() => {
     let alive = true;
 
@@ -160,7 +180,6 @@ export default function AdminProductEditPage() {
     };
   }, []);
 
-  // ✅ load product
   useEffect(() => {
     let alive = true;
 
@@ -212,7 +231,6 @@ export default function AdminProductEditPage() {
     };
   }, [id]);
 
-  // ✅ load partner brands when supported
   useEffect(() => {
     let alive = true;
 
@@ -366,7 +384,10 @@ export default function AdminProductEditPage() {
       let image_url: string | null = existingImageUrl;
       if (imageFile) image_url = await uploadProductImage(imageFile);
 
-      const normalizedBrand = normalizeBrand(brand);
+      const normalizedBrand = isAccessories
+        ? normalizePeripheralType(brand)
+        : normalizeBrand(brand);
+
       const normalizedPartner = supportsPartnerBrand
         ? normalizePartnerBrand(partnerBrand)
         : "";
@@ -466,19 +487,33 @@ export default function AdminProductEditPage() {
 
           <div className="grid gap-2">
             <label className="text-sm font-semibold">
-              Brand <span className="text-xs text-black/50">(Chip/General)</span>
+              {isAccessories ? "Peripheral Type" : "Brand"}{" "}
+              <span className="text-xs text-black/50">
+                {isAccessories ? "(e.g., Keyboard, Mouse, Headset)" : "(Chip/General)"}
+              </span>
             </label>
             <input
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
               className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="e.g., AMD, NVIDIA, Intel, ASUS, Acer"
+              placeholder={
+                isAccessories
+                  ? "e.g., Keyboard, Mouse, Headset"
+                  : "e.g., AMD, NVIDIA, Intel, ASUS, Acer"
+              }
             />
+            <div className="text-[11px] text-black/50">
+              {isAccessories
+                ? "For Accessories, use the peripheral type here. Example: Keyboard, Mouse, Headset."
+                : "For GPU/Motherboard, this is usually the chip brand. For laptops, this can be the general or main brand if needed."}
+            </div>
           </div>
 
           {supportsPartnerBrand ? (
             <div className="grid gap-2">
-              <label className="text-sm font-semibold">Partner Brand</label>
+              <label className="text-sm font-semibold">
+                {isAccessories ? "Partner Brand" : "Partner Brand"}
+              </label>
 
               <select
                 value={partnerBrand}
@@ -500,7 +535,11 @@ export default function AdminProductEditPage() {
                 <input
                   value={newPartnerBrand}
                   onChange={(e) => setNewPartnerBrand(e.target.value)}
-                  placeholder="Add new brand (e.g., ThinkPad, ASUS, Acer)"
+                  placeholder={
+                    isAccessories
+                      ? "Add new brand (e.g., Logitech, Razer, Redragon)"
+                      : "Add new brand (e.g., ThinkPad, ASUS, Acer)"
+                  }
                   className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
                 />
                 <button
@@ -514,7 +553,17 @@ export default function AdminProductEditPage() {
               </div>
 
               <div className="text-[11px] text-black/50">
-                Only for <b>GPU</b>, <b>Motherboard</b>, and <b>Laptop</b>. Brands come from <b>product_brands</b> table.
+                {isAccessories ? (
+                  <>
+                    For <b>Accessories</b>, use <b>brand</b> as the peripheral type and{" "}
+                    <b>partner_brand</b> as the manufacturer/brand.
+                  </>
+                ) : (
+                  <>
+                    Only for <b>GPU</b>, <b>Motherboard</b>, <b>Laptop</b>, and{" "}
+                    <b>Accessories</b>. Brands come from <b>product_brands</b> table.
+                  </>
+                )}
               </div>
             </div>
           ) : null}

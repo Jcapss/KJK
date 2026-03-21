@@ -87,6 +87,8 @@ export default function CategoryPage() {
     return map[slug] ?? slug;
   }, [slug]);
 
+  const isAccessories = slug === "accessories";
+
   const [query] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,8 +114,8 @@ export default function CategoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortOption>("default");
 
-  // show partner dropdown whenever this category has partner brands
   const hasPartnerBrands = partnerOptions.length > 0;
+  const leftTitle = isAccessories ? "PERIPHERALS" : "PRODUCT BRANDS";
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -123,7 +125,7 @@ export default function CategoryPage() {
     localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
   }, [itemCache]);
 
-  // product brands (checkboxes)
+  // checkbox list: brand for normal categories, also brand for accessories but labeled as PERIPHERALS
   useEffect(() => {
     let alive = true;
 
@@ -154,7 +156,7 @@ export default function CategoryPage() {
     };
   }, [slug]);
 
-  // partner brands (dropdown)
+  // partner brand dropdown
   useEffect(() => {
     let alive = true;
 
@@ -351,15 +353,19 @@ export default function CategoryPage() {
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
           <aside className="h-fit rounded-2xl border border-black/10 bg-white p-4">
-            <div className="text-sm font-extrabold tracking-wide">PRODUCT BRANDS</div>
+            <div className="text-sm font-extrabold tracking-wide">{leftTitle}</div>
             <div className="mt-2 h-[2px] w-full bg-black/10" />
             <div className="mt-1 h-[3px] w-16 bg-red-600" />
 
             <div className="mt-4">
               {brandLoading ? (
-                <div className="text-sm text-black/60">Loading brands...</div>
+                <div className="text-sm text-black/60">
+                  Loading {isAccessories ? "peripherals..." : "brands..."}
+                </div>
               ) : brandOptions.length === 0 ? (
-                <div className="text-sm text-black/60">No brands found.</div>
+                <div className="text-sm text-black/60">
+                  No {isAccessories ? "peripherals" : "brands"} found.
+                </div>
               ) : (
                 <div className="space-y-2">
                   {brandOptions.map((b) => (
