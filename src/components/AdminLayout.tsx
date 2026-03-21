@@ -42,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="h-12 w-12 rounded-2xl object-contain bg-white p-1"
         />
         <div className="leading-tight">
-          <div className="font-extrabold">KJK TechShop Computer Store</div>
+          <div className="font-extrabold">KJK TECHSHOP COMPUTER STORE</div>
           <div className="text-xs text-black/60">Admin Panel</div>
         </div>
       </div>
