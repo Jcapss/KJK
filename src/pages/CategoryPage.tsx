@@ -88,7 +88,9 @@ export default function CategoryPage() {
   }, [slug]);
 
   const isAccessories = slug === "accessories";
-  const isSolar = slug === "services"; // ✅ solar packages under services
+  const isSolar = slug === "services";
+  const isRam = slug === "ram";
+  const isMonitor = slug === "monitor";
 
   const [query] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
@@ -112,15 +114,19 @@ export default function CategoryPage() {
   const [partnerBrand, setPartnerBrand] = useState("");
   const [partnerLoading, setPartnerLoading] = useState(false);
 
-  // ✅ solar kw filter
   const [kwOptions, setKwOptions] = useState<number[]>([]);
   const [selectedKW, setSelectedKW] = useState<number | "">("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortOption>("default");
 
-  const hasPartnerBrands = partnerOptions.length > 0;
-  const leftTitle = isAccessories ? "PERIPHERALS" : "PRODUCT BRANDS";
+  const hasPartnerBrands = !isMonitor && partnerOptions.length > 0;
+
+  const leftTitle = isAccessories
+    ? "PERIPHERALS"
+    : isRam
+    ? "GENERATION"
+    : "PRODUCT BRANDS";
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -168,7 +174,7 @@ export default function CategoryPage() {
         setPartnerLoading(true);
         setPartnerBrand("");
 
-        if (!slug) {
+        if (!slug || isMonitor) {
           setPartnerOptions([]);
           return;
         }
@@ -188,9 +194,8 @@ export default function CategoryPage() {
     return () => {
       alive = false;
     };
-  }, [slug]);
+  }, [slug, isMonitor]);
 
-  // ✅ load available KW sizes for solar/services
   useEffect(() => {
     let alive = true;
 
@@ -245,7 +250,7 @@ export default function CategoryPage() {
           category: categoryCandidates.length ? categoryCandidates : slug,
           q: query,
           brands: selectedBrands,
-          partnerBrand: partnerBrand || undefined,
+          partnerBrand: !isMonitor && partnerBrand ? partnerBrand : undefined,
           kw: selectedKW === "" ? undefined : selectedKW,
         });
 
@@ -280,7 +285,7 @@ export default function CategoryPage() {
     return () => {
       alive = false;
     };
-  }, [slug, categoryCandidates, query, selectedBrands, partnerBrand, selectedKW]);
+  }, [slug, categoryCandidates, query, selectedBrands, partnerBrand, selectedKW, isMonitor]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -402,11 +407,11 @@ export default function CategoryPage() {
             <div className="mt-4">
               {brandLoading ? (
                 <div className="text-sm text-black/60">
-                  Loading {isAccessories ? "peripherals..." : "brands..."}
+                  Loading {isAccessories ? "peripherals..." : isRam ? "generations..." : "brands..."}
                 </div>
               ) : brandOptions.length === 0 ? (
                 <div className="text-sm text-black/60">
-                  No {isAccessories ? "peripherals" : "brands"} found.
+                  No {isAccessories ? "peripherals" : isRam ? "generations" : "brands"} found.
                 </div>
               ) : (
                 <div className="space-y-2">

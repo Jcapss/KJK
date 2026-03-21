@@ -90,6 +90,22 @@ function normalizePeripheralType(input: string) {
   return CANON[key] ?? cleaned;
 }
 
+function normalizeRamGeneration(input: string) {
+  const cleaned = (input ?? "").trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+
+  const upper = cleaned.toUpperCase().replace(/\s+/g, "");
+  const CANON: Record<string, string> = {
+    DDR3: "DDR3",
+    DDR4: "DDR4",
+    DDR5: "DDR5",
+    LPDDR4: "LPDDR4",
+    LPDDR5: "LPDDR5",
+  };
+
+  return CANON[upper] ?? cleaned.toUpperCase();
+}
+
 export default function AdminProductNewPage() {
   const nav = useNavigate();
 
@@ -102,7 +118,6 @@ export default function AdminProductNewPage() {
   const [categorySlug, setCategorySlug] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
 
-  // ✅ solar fields
   const [kwSize, setKwSize] = useState<string>("");
   const [systemType, setSystemType] = useState("");
   const [includesText, setIncludesText] = useState("");
@@ -123,20 +138,63 @@ export default function AdminProductNewPage() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const normalizedCategory = useMemo(
+    () => categorySlug.trim().toLowerCase(),
+    [categorySlug]
+  );
+
   const supportsPartnerBrand = useMemo(() => {
-    const s = categorySlug.trim().toLowerCase();
-    return s === "gpu" || s === "motherboard" || s === "laptop" || s === "accessories";
-  }, [categorySlug]);
+    const s = normalizedCategory;
+    return (
+      s === "gpu" ||
+      s === "motherboard" ||
+      s === "laptop" ||
+      s === "accessories" ||
+      s === "ram"
+    );
+  }, [normalizedCategory]);
 
   const isAccessories = useMemo(
-    () => categorySlug.trim().toLowerCase() === "accessories",
-    [categorySlug]
+    () => normalizedCategory === "accessories",
+    [normalizedCategory]
   );
 
   const isSolar = useMemo(
-    () => categorySlug.trim().toLowerCase() === "services",
-    [categorySlug]
+    () => normalizedCategory === "services",
+    [normalizedCategory]
   );
+
+  const isRam = useMemo(
+    () => normalizedCategory === "ram",
+    [normalizedCategory]
+  );
+
+  const isMonitor = useMemo(
+    () => normalizedCategory === "monitor",
+    [normalizedCategory]
+  );
+
+  const brandLabel = isAccessories
+    ? "Peripheral Type"
+    : isRam
+    ? "Generation"
+    : "Brand";
+
+  const brandHint = isAccessories
+    ? "(e.g., Keyboard, Mouse, Headset)"
+    : isRam
+    ? "(e.g., DDR3, DDR4, DDR5)"
+    : "(Chip/General)";
+
+  const brandPlaceholder = isAccessories
+    ? "e.g., Keyboard, Mouse, Headset"
+    : isRam
+    ? "e.g., DDR4, DDR5"
+    : isSolar
+    ? "e.g., Solar Package"
+    : isMonitor
+    ? "e.g., Nvision, ASUS, Acer, MSI"
+    : "e.g., AMD, NVIDIA, Intel, ASUS, Acer";
 
   useEffect(() => {
     if (!supportsPartnerBrand) {
@@ -207,7 +265,7 @@ export default function AdminProductNewPage() {
       try {
         setPartnerBrandsLoading(true);
 
-        const cat = categorySlug.trim().toLowerCase();
+        const cat = normalizedCategory;
         const { data, error } = await supabase
           .from("product_brands")
           .select("id, name, category_slug, is_active")
@@ -231,7 +289,7 @@ export default function AdminProductNewPage() {
     return () => {
       alive = false;
     };
-  }, [supportsPartnerBrand, categorySlug]);
+  }, [supportsPartnerBrand, normalizedCategory]);
 
   async function uploadProductImage(file: File) {
     const ext = safeExt(file.name);
@@ -272,7 +330,7 @@ export default function AdminProductNewPage() {
   async function reloadPartnerBrands() {
     if (!supportsPartnerBrand) return;
 
-    const cat = categorySlug.trim().toLowerCase();
+    const cat = normalizedCategory;
     const { data, error } = await supabase
       .from("product_brands")
       .select("id, name, category_slug, is_active")
@@ -287,7 +345,7 @@ export default function AdminProductNewPage() {
   async function handleAddPartnerBrand() {
     if (!supportsPartnerBrand) return;
 
-    const cat = categorySlug.trim().toLowerCase();
+    const cat = normalizedCategory;
     const clean = normalizePartnerBrand(newPartnerBrand);
     if (!clean) return;
 
@@ -365,6 +423,8 @@ export default function AdminProductNewPage() {
 
       const normalizedBrand = isAccessories
         ? normalizePeripheralType(brand)
+        : isRam
+        ? normalizeRamGeneration(brand)
         : normalizeBrand(brand);
 
       const normalizedPartner = supportsPartnerBrand
@@ -383,8 +443,6 @@ export default function AdminProductNewPage() {
         category_slug: categorySlug,
         image_url,
         is_active: isActive,
-
-        // ✅ solar fields
         kw_size: isSolar && kwSize ? Number(kwSize) : null,
         system_type: isSolar ? systemType.trim() || null : null,
         includes: isSolar ? includesText.trim() || null : null,
@@ -454,26 +512,21 @@ export default function AdminProductNewPage() {
 
         <div className="grid gap-2">
           <label className="text-sm font-semibold">
-            {isAccessories ? "Peripheral Type" : "Brand"}{" "}
-            <span className="text-xs text-black/50">
-              {isAccessories ? "(e.g., Keyboard, Mouse, Headset)" : "(Chip/General)"}
-            </span>
+            {brandLabel} <span className="text-xs text-black/50">{brandHint}</span>
           </label>
           <input
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
             className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-            placeholder={
-              isAccessories
-                ? "e.g., Keyboard, Mouse, Headset"
-                : isSolar
-                ? "e.g., Solar Package"
-                : "e.g., AMD, NVIDIA, Intel, ASUS, Acer"
-            }
+            placeholder={brandPlaceholder}
           />
           <div className="text-[11px] text-black/50">
             {isAccessories
               ? "For Accessories, use the peripheral type here."
+              : isRam
+              ? "For RAM, use the generation here such as DDR4 or DDR5."
+              : isMonitor
+              ? "For Monitor, use the product brand here."
               : isSolar
               ? "For solar services, this can be a general label like Solar Package."
               : "For GPU/Motherboard, this is usually the chip brand. For laptops, this can be the general or main brand if needed."}
@@ -507,6 +560,8 @@ export default function AdminProductNewPage() {
                 placeholder={
                   isAccessories
                     ? "Add new brand (e.g., Logitech, Razer, Redragon)"
+                    : isRam
+                    ? "Add new partner brand (e.g., Kingston, TeamGroup, Corsair)"
                     : "Add new brand (e.g., ASUS, Acer, MSI)"
                 }
                 className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
@@ -523,7 +578,6 @@ export default function AdminProductNewPage() {
           </div>
         ) : null}
 
-        {/* ✅ solar section */}
         {isSolar ? (
           <div className="grid gap-4 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
             <div className="text-sm font-bold">Solar Package Details</div>

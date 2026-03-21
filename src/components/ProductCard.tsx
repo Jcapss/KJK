@@ -106,37 +106,48 @@ export default function ProductCard({
     return parts.join(" • ");
   }, [isSolarService, item.kw_size, item.system_type]);
 
+  const categorySlug = String(item.category_slug ?? "").toLowerCase();
+  const isRam = categorySlug === "ram";
+  const isMonitor = categorySlug === "monitor";
+
+  const primaryMetaLabel = isRam ? "Generation" : "Product Brand";
+  const primaryMetaValue = item.brand?.trim() || "";
+  const partneredBrandValue = isRam ? item.partner_brand?.trim() || "" : "";
+
+  const shouldShowMeta =
+    (isRam || isMonitor) && (primaryMetaValue || partneredBrandValue);
+
   return (
     <button
       type="button"
       onClick={() => onView(item.id)}
-      className="block w-full h-full text-left"
+      className="block h-full w-full text-left"
     >
-      <div className="h-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm transition hover:shadow-md flex flex-col">
-        <div className="relative border-b border-black/10 bg-white h-56">
+      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm transition hover:shadow-md">
+        <div className="relative h-56 border-b border-black/10 bg-white">
           {item.image_url ? (
             <img
               src={item.image_url}
               alt={item.name}
-              className="absolute inset-0 h-full w-full object-contain p-3 bg-white"
+              className="absolute inset-0 h-full w-full bg-white object-contain p-3"
               loading="lazy"
             />
           ) : (
-            <div className="h-full w-full grid place-items-center bg-gradient-to-br from-black/5 to-black/10 text-6xl">
+            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-black/5 to-black/10 text-6xl">
               {item.icon ?? "📦"}
             </div>
           )}
 
           {item.badge ? (
-            <div className="absolute top-3 right-3">
+            <div className="absolute right-3 top-3">
               <Badge>{item.badge}</Badge>
             </div>
           ) : null}
         </div>
 
-        <div className="p-4 flex flex-col flex-1">
-          <div className="min-h-[72px]">
-            <div className="text-base font-semibold text-black line-clamp-2">
+        <div className="flex flex-1 flex-col p-4">
+          <div className="min-h-[120px]">
+            <div className="line-clamp-2 text-base font-semibold text-black">
               {item.name}
             </div>
 
@@ -146,12 +157,34 @@ export default function ProductCard({
               </div>
             ) : null}
 
-            <div className="mt-1 text-sm text-black/60 line-clamp-2">
+            <div className="mt-1 line-clamp-2 text-sm text-black/60">
               {item.description}
             </div>
+
+            {shouldShowMeta ? (
+              <div className="mt-3 space-y-1 text-xs">
+                {primaryMetaValue ? (
+                  <div className="text-black/70">
+                    <span className="font-semibold text-black">
+                      {primaryMetaLabel}:
+                    </span>{" "}
+                    {primaryMetaValue}
+                  </div>
+                ) : null}
+
+                {isRam && partneredBrandValue ? (
+                  <div className="text-black/70">
+                    <span className="font-semibold text-black">
+                      Partnered Brand:
+                    </span>{" "}
+                    {partneredBrandValue}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
-          <div className="mt-auto pt-4 flex items-end justify-between gap-3">
+          <div className="mt-auto flex items-end justify-between gap-3 pt-4">
             <div>
               <div className="text-sm text-black/60">{categoryName}</div>
 
@@ -180,7 +213,7 @@ export default function ProductCard({
               ) : null}
             </div>
 
-            <span className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white whitespace-nowrap">
+            <span className="whitespace-nowrap rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white">
               View Details
             </span>
           </div>
