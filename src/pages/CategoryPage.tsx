@@ -88,6 +88,7 @@ export default function CategoryPage() {
   }, [slug]);
 
   const isAccessories = slug === "accessories";
+  const isSolar = slug === "services"; // ✅ solar packages under services
 
   const [query] = useState("");
   const [items, setItems] = useState<ProductRow[]>([]);
@@ -111,6 +112,10 @@ export default function CategoryPage() {
   const [partnerBrand, setPartnerBrand] = useState("");
   const [partnerLoading, setPartnerLoading] = useState(false);
 
+  // ✅ solar kw filter
+  const [kwOptions, setKwOptions] = useState<number[]>([]);
+  const [selectedKW, setSelectedKW] = useState<number | "">("");
+
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortOption>("default");
 
@@ -125,7 +130,6 @@ export default function CategoryPage() {
     localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
   }, [itemCache]);
 
-  // checkbox list: brand for normal categories, also brand for accessories but labeled as PERIPHERALS
   useEffect(() => {
     let alive = true;
 
@@ -156,7 +160,6 @@ export default function CategoryPage() {
     };
   }, [slug]);
 
-  // partner brand dropdown
   useEffect(() => {
     let alive = true;
 
@@ -187,7 +190,44 @@ export default function CategoryPage() {
     };
   }, [slug]);
 
-  // fetch products
+  // ✅ load available KW sizes for solar/services
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        if (!isSolar) {
+          setKwOptions([]);
+          setSelectedKW("");
+          return;
+        }
+
+        const data = await fetchProducts({
+          category: slug,
+        });
+
+        if (!alive) return;
+
+        const kws = Array.from(
+          new Set(
+            data
+              .map((p) => p.kw_size)
+              .filter((k): k is number => typeof k === "number")
+          )
+        ).sort((a, b) => a - b);
+
+        setKwOptions(kws);
+      } catch {
+        if (!alive) return;
+        setKwOptions([]);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [slug, isSolar]);
+
   useEffect(() => {
     let alive = true;
 
@@ -206,6 +246,7 @@ export default function CategoryPage() {
           q: query,
           brands: selectedBrands,
           partnerBrand: partnerBrand || undefined,
+          kw: selectedKW === "" ? undefined : selectedKW,
         });
 
         if (!alive) return;
@@ -239,11 +280,11 @@ export default function CategoryPage() {
     return () => {
       alive = false;
     };
-  }, [slug, categoryCandidates, query, selectedBrands, partnerBrand]);
+  }, [slug, categoryCandidates, query, selectedBrands, partnerBrand, selectedKW]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [slug, selectedBrands, partnerBrand, query, sortBy]);
+  }, [slug, selectedBrands, partnerBrand, selectedKW, query, sortBy]);
 
   const catTitle = useMemo(() => titleFromSlug(slug), [slug]);
 
@@ -256,6 +297,7 @@ export default function CategoryPage() {
   function clearBrands() {
     setSelectedBrands([]);
     setPartnerBrand("");
+    setSelectedKW("");
     setSortBy("default");
     setCurrentPage(1);
   }
@@ -406,11 +448,34 @@ export default function CategoryPage() {
                 </div>
               ) : null}
 
+              {isSolar && kwOptions.length > 0 ? (
+                <div className="mt-5">
+                  <div className="text-xs font-extrabold tracking-wide text-black/70">
+                    SYSTEM SIZE (KW)
+                  </div>
+
+                  <select
+                    value={selectedKW}
+                    onChange={(e) =>
+                      setSelectedKW(e.target.value ? Number(e.target.value) : "")
+                    }
+                    className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                  >
+                    <option value="">All</option>
+                    {kwOptions.map((kw) => (
+                      <option key={kw} value={kw}>
+                        {kw} KW
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"
                   onClick={clearBrands}
-                  disabled={selectedBrands.length === 0 && !partnerBrand}
+                  disabled={selectedBrands.length === 0 && !partnerBrand && selectedKW === ""}
                   className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold hover:bg-black/5 disabled:opacity-60"
                 >
                   Clear

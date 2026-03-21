@@ -62,13 +62,14 @@ function applyCategoryFilter(
 export async function fetchProducts(args?: {
   category?: string | string[];
   q?: string;
-  brands?: string[];      // PRODUCT BRANDS checkbox list
-  partnerBrand?: string;  // PARTNER BRAND dropdown
+  brands?: string[];
+  partnerBrand?: string;
+  kw?: number; // ✅ NEW
 }): Promise<ProductRow[]> {
   let query = supabase
     .from("products")
     .select(
-      "id,name,description,category_slug,brand,partner_brand,price,stock,badge,icon,image_url,images,is_active,created_at"
+      "id,name,description,category_slug,brand,partner_brand,price,stock,badge,icon,image_url,images,kw_size,system_type,includes,quotation_pdf,is_active,created_at"
     )
     .eq("is_active", true)
     .order("created_at", { ascending: false });
@@ -80,7 +81,6 @@ export async function fetchProducts(args?: {
     query = query.ilike("name", `%${q}%`);
   }
 
-  // ✅ PRODUCT BRANDS always filter by `brand`
   const brands = (args?.brands ?? [])
     .map((b) => String(b ?? "").trim())
     .filter(Boolean);
@@ -89,14 +89,17 @@ export async function fetchProducts(args?: {
     const orStr = brands
       .map((b) => `brand.ilike.${escOrValue(b)}`)
       .join(",");
-
     query = query.or(orStr);
   }
 
-  // ✅ PARTNER BRAND always filters by `partner_brand`
   const pb = String(args?.partnerBrand ?? "").trim();
   if (pb) {
     query = query.ilike("partner_brand", pb);
+  }
+
+  // ✅ solar KW filter
+  if (typeof args?.kw === "number") {
+    query = query.eq("kw_size", args.kw);
   }
 
   const { data, error } = await query;
@@ -109,7 +112,7 @@ export async function fetchProductById(id: string): Promise<ProductRow | null> {
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id,name,description,category_slug,brand,partner_brand,price,stock,badge,icon,image_url,images,is_active,created_at"
+      "id,name,description,category_slug,brand,partner_brand,price,stock,badge,icon,image_url,images,kw_size,system_type,includes,quotation_pdf,is_active,created_at"
     )
     .eq("id", id)
     .maybeSingle();
@@ -118,7 +121,7 @@ export async function fetchProductById(id: string): Promise<ProductRow | null> {
   return (data ?? null) as ProductRow | null;
 }
 
-/** Get distinct PRODUCT BRANDS for checkbox list */
+/** Get distinct PRODUCT BRANDS / PERIPHERALS for checkbox list */
 export async function fetchBrands(args?: {
   category?: string | string[];
 }): Promise<string[]> {

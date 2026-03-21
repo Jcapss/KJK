@@ -24,7 +24,7 @@ export type ProductRow = {
   // chip brand (AMD/NVIDIA/Intel) OR general brand (for simple categories)
   brand?: string | null;
 
-  // ✅ NEW: Partner brand (MSI/Gigabyte/ASUS...) for GPU/Motherboard
+  // partner brand / manufacturer
   partner_brand?: string | null;
 
   badge?: string | null;
@@ -33,8 +33,14 @@ export type ProductRow = {
   // main thumbnail
   image_url?: string | null;
 
-  // ✅ NEW: gallery images
+  // gallery images
   images?: string[] | null;
+
+  // ✅ SOLAR FIELDS
+  kw_size?: number | null;          // 3, 5, 8, 10, etc.
+  system_type?: string | null;      // On-Grid / Hybrid / Off-Grid
+  includes?: string | null;         // package inclusions summary
+  quotation_pdf?: string | null;    // uploaded quotation PDF URL
 
   is_active?: boolean;
   created_at?: string;

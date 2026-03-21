@@ -281,6 +281,13 @@ export default function ProductPage() {
   const price = Number(item.price);
   const isQuote = item.category_slug === "services" && price <= 0;
 
+  const isSolarService =
+    item.category_slug === "services" &&
+    (typeof item.kw_size === "number" ||
+      !!item.system_type ||
+      !!item.includes ||
+      !!item.quotation_pdf);
+
   const canViewPrice =
     !!profile &&
     (profile.role === "admin" || profile.approval_status === "approved");
@@ -354,6 +361,54 @@ export default function ProductPage() {
             <div className="mt-1 text-3xl font-semibold">{item.name}</div>
             <div className="mt-2 text-sm text-black/60">{item.description}</div>
 
+            {isSolarService ? (
+              <div className="mt-5 grid gap-3 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                <div className="text-sm font-bold">Solar Package Details</div>
+
+                {typeof item.kw_size === "number" ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+                      System Size
+                    </div>
+                    <div className="text-sm font-medium">{item.kw_size} KW</div>
+                  </div>
+                ) : null}
+
+                {item.system_type ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+                      System Type
+                    </div>
+                    <div className="text-sm font-medium">{item.system_type}</div>
+                  </div>
+                ) : null}
+
+                {item.includes ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-black/50">
+                      Package Inclusions
+                    </div>
+                    <div className="text-sm text-black/70 whitespace-pre-line">
+                      {item.includes}
+                    </div>
+                  </div>
+                ) : null}
+
+                {item.quotation_pdf ? (
+                  <div className="pt-1">
+                    <a
+                      href={item.quotation_pdf}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5"
+                    >
+                      View Quotation PDF
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-5">
               {checkingAccess ? (
                 <div className="text-lg font-bold text-black/40">Checking...</div>
@@ -378,7 +433,9 @@ export default function ProductPage() {
                 ].join(" ")}
               >
                 {item.category_slug === "services"
-                  ? "Service"
+                  ? isSolarService
+                    ? "Solar Service"
+                    : "Service"
                   : item.stock > 0
                   ? `In Stock (${item.stock})`
                   : "AVAILABLE"}

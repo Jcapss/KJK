@@ -11,11 +11,14 @@ type Product = {
   price: number | string;
   stock: number | null;
   badge: string | null;
-  icon: string | null; // (legacy, safe to keep)
+  icon: string | null;
   category_slug: string;
   image_url: string | null;
   is_active: boolean;
   created_at: string;
+  kw_size?: number | null;
+  system_type?: string | null;
+  quotation_pdf?: string | null;
 };
 
 export default function AdminProductsPage() {
@@ -82,7 +85,8 @@ export default function AdminProductsPage() {
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((p) => {
-        const hay = `${p.name} ${p.description} ${p.category_slug}`.toLowerCase();
+        const hay =
+          `${p.name} ${p.description} ${p.category_slug} ${p.system_type ?? ""} ${p.kw_size ?? ""}`.toLowerCase();
         return hay.includes(q);
       });
     }
@@ -93,6 +97,16 @@ export default function AdminProductsPage() {
   function priceLabel(v: number | string) {
     const n = Number(v ?? 0);
     return `₱${Number.isFinite(n) ? n.toLocaleString() : "0"}`;
+  }
+
+  function getProductMeta(p: Product) {
+    if (p.category_slug !== "services") return null;
+
+    const parts: string[] = [];
+    if (typeof p.kw_size === "number") parts.push(`${p.kw_size}KW`);
+    if (p.system_type) parts.push(p.system_type);
+
+    return parts.length ? parts.join(" • ") : "Service";
   }
 
   return (
@@ -150,7 +164,6 @@ export default function AdminProductsPage() {
         </div>
       ) : null}
 
-      {/* ✅ MOBILE: Cards */}
       <div className="mt-5 grid gap-3 md:hidden">
         {loading ? (
           <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
@@ -185,6 +198,11 @@ export default function AdminProductsPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-semibold leading-tight">{p.name}</div>
+                      {getProductMeta(p) ? (
+                        <div className="mt-1 text-xs font-semibold text-green-700">
+                          {getProductMeta(p)}
+                        </div>
+                      ) : null}
                       <div className="mt-1 text-xs text-black/60 line-clamp-2">
                         {p.description}
                       </div>
@@ -235,7 +253,6 @@ export default function AdminProductsPage() {
         )}
       </div>
 
-      {/* ✅ DESKTOP: Table */}
       <div className="mt-5 hidden md:block overflow-hidden rounded-2xl border border-black/10 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -282,6 +299,11 @@ export default function AdminProductsPage() {
 
                         <div className="min-w-0">
                           <div className="font-semibold">{p.name}</div>
+                          {getProductMeta(p) ? (
+                            <div className="text-xs font-semibold text-green-700">
+                              {getProductMeta(p)}
+                            </div>
+                          ) : null}
                           <div className="truncate text-xs text-black/60 max-w-[340px]">
                             {p.description}
                           </div>

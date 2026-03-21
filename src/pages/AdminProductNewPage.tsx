@@ -13,11 +13,12 @@ type CategoryRow = {
 type BrandRow = {
   id: string;
   name: string;
-  category_slug: string; // 'gpu' | 'motherboard' | 'laptop' | 'accessories' | 'all'
+  category_slug: string;
   is_active: boolean;
 };
 
-const BUCKET = "product-images";
+const IMAGE_BUCKET = "product-images";
+const PDF_BUCKET = "product-quotations";
 
 function safeExt(fileName: string) {
   const parts = fileName.split(".");
@@ -29,7 +30,6 @@ function looksLikeMissingColumn(err: any, column: string) {
   return msg.includes(column.toLowerCase()) && msg.includes("does not exist");
 }
 
-/** minimal brand normalize (chip brand / general brand) */
 function normalizeBrand(input: string) {
   const cleaned = (input ?? "").trim().replace(/\s+/g, " ");
   if (!cleaned) return "";
@@ -68,7 +68,6 @@ function normalizeBrand(input: string) {
   return CANON[key] ?? cleaned;
 }
 
-/** partner brand normalize */
 function normalizePartnerBrand(input: string) {
   return normalizeBrand(input);
 }
@@ -103,6 +102,12 @@ export default function AdminProductNewPage() {
   const [categorySlug, setCategorySlug] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
 
+  // ✅ solar fields
+  const [kwSize, setKwSize] = useState<string>("");
+  const [systemType, setSystemType] = useState("");
+  const [includesText, setIncludesText] = useState("");
+  const [quotationFile, setQuotationFile] = useState<File | null>(null);
+
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [catsLoading, setCatsLoading] = useState(true);
 
@@ -125,6 +130,11 @@ export default function AdminProductNewPage() {
 
   const isAccessories = useMemo(
     () => categorySlug.trim().toLowerCase() === "accessories",
+    [categorySlug]
+  );
+
+  const isSolar = useMemo(
+    () => categorySlug.trim().toLowerCase() === "services",
     [categorySlug]
   );
 
@@ -224,16 +234,11 @@ export default function AdminProductNewPage() {
   }, [supportsPartnerBrand, categorySlug]);
 
   async function uploadProductImage(file: File) {
-    const maxMB = 5;
-    if (file.size > maxMB * 1024 * 1024) {
-      throw new Error(`Image is too large. Max ${maxMB}MB.`);
-    }
-
     const ext = safeExt(file.name);
     const filePath = `products/${crypto.randomUUID()}.${ext}`;
 
     const { error: uploadErr } = await supabase.storage
-      .from(BUCKET)
+      .from(IMAGE_BUCKET)
       .upload(filePath, file, {
         cacheControl: "3600",
         upsert: false,
@@ -242,11 +247,26 @@ export default function AdminProductNewPage() {
 
     if (uploadErr) throw new Error(uploadErr.message);
 
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
-    const publicUrl = data.publicUrl;
+    const { data } = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(filePath);
+    return data.publicUrl;
+  }
 
-    if (!publicUrl) throw new Error("Failed to get image URL.");
-    return publicUrl;
+  async function uploadQuotationPdf(file: File) {
+    const ext = safeExt(file.name);
+    const filePath = `quotations/${crypto.randomUUID()}.${ext}`;
+
+    const { error: uploadErr } = await supabase.storage
+      .from(PDF_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "application/pdf",
+      });
+
+    if (uploadErr) throw new Error(uploadErr.message);
+
+    const { data } = supabase.storage.from(PDF_BUCKET).getPublicUrl(filePath);
+    return data.publicUrl;
   }
 
   async function reloadPartnerBrands() {
@@ -305,21 +325,20 @@ export default function AdminProductNewPage() {
     const { error } = await supabase.from("products").insert(payload);
     if (!error) return;
 
-    if (looksLikeMissingColumn(error, "brand")) {
-      const { brand: _brand, ...payloadNoBrand } = payload;
-      const retry = await supabase.from("products").insert(payloadNoBrand);
-      if (!retry.error) return;
-      throw new Error(retry.error.message);
+    const columnsToTry = ["brand", "partner_brand", "kw_size", "system_type", "includes", "quotation_pdf"];
+
+    let currentPayload = { ...payload };
+    for (const col of columnsToTry) {
+      if (looksLikeMissingColumn(error, col)) {
+        const { [col]: _removed, ...rest } = currentPayload;
+        currentPayload = rest;
+      }
     }
 
-    if (looksLikeMissingColumn(error, "partner_brand")) {
-      const { partner_brand: _pb, ...payloadNoPB } = payload;
-      const retry = await supabase.from("products").insert(payloadNoPB);
-      if (!retry.error) return;
-      throw new Error(retry.error.message);
-    }
+    const retry = await supabase.from("products").insert(currentPayload);
+    if (!retry.error) return;
 
-    throw new Error(error.message);
+    throw new Error(retry.error.message || error.message);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -339,7 +358,10 @@ export default function AdminProductNewPage() {
 
     try {
       let image_url: string | null = null;
+      let quotation_pdf: string | null = null;
+
       if (imageFile) image_url = await uploadProductImage(imageFile);
+      if (quotationFile) quotation_pdf = await uploadQuotationPdf(quotationFile);
 
       const normalizedBrand = isAccessories
         ? normalizePeripheralType(brand)
@@ -361,6 +383,12 @@ export default function AdminProductNewPage() {
         category_slug: categorySlug,
         image_url,
         is_active: isActive,
+
+        // ✅ solar fields
+        kw_size: isSolar && kwSize ? Number(kwSize) : null,
+        system_type: isSolar ? systemType.trim() || null : null,
+        includes: isSolar ? includesText.trim() || null : null,
+        quotation_pdf: isSolar ? quotation_pdf : null,
       };
 
       await insertWithFallback(payload);
@@ -420,7 +448,7 @@ export default function AdminProductNewPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-            placeholder="e.g., Ryzen 5 5600"
+            placeholder={isSolar ? "e.g., 8KW Hybrid Solar Installation" : "e.g., Ryzen 5 5600"}
           />
         </div>
 
@@ -438,12 +466,16 @@ export default function AdminProductNewPage() {
             placeholder={
               isAccessories
                 ? "e.g., Keyboard, Mouse, Headset"
+                : isSolar
+                ? "e.g., Solar Package"
                 : "e.g., AMD, NVIDIA, Intel, ASUS, Acer"
             }
           />
           <div className="text-[11px] text-black/50">
             {isAccessories
-              ? "For Accessories, use the peripheral type here. Example: Keyboard, Mouse, Headset."
+              ? "For Accessories, use the peripheral type here."
+              : isSolar
+              ? "For solar services, this can be a general label like Solar Package."
               : "For GPU/Motherboard, this is usually the chip brand. For laptops, this can be the general or main brand if needed."}
           </div>
         </div>
@@ -475,7 +507,7 @@ export default function AdminProductNewPage() {
                 placeholder={
                   isAccessories
                     ? "Add new brand (e.g., Logitech, Razer, Redragon)"
-                    : "Add new brand (e.g., Palit, Sapphire, ASUS, Acer)"
+                    : "Add new brand (e.g., ASUS, Acer, MSI)"
                 }
                 className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
               />
@@ -488,19 +520,64 @@ export default function AdminProductNewPage() {
                 {addingPartnerBrand ? "Adding..." : "Add"}
               </button>
             </div>
+          </div>
+        ) : null}
 
-            <div className="text-[11px] text-black/50">
-              {isAccessories ? (
-                <>
-                  For <b>Accessories</b>, use <b>brand</b> as the peripheral type and{" "}
-                  <b>partner_brand</b> as the manufacturer/brand.
-                </>
-              ) : (
-                <>
-                  Only for <b>GPU</b>, <b>Motherboard</b>, <b>Laptop</b>, and{" "}
-                  <b>Accessories</b>. Brands come from <b>product_brands</b> table.
-                </>
-              )}
+        {/* ✅ solar section */}
+        {isSolar ? (
+          <div className="grid gap-4 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+            <div className="text-sm font-bold">Solar Package Details</div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <label className="text-sm font-semibold">System Size (KW)</label>
+                <input
+                  value={kwSize}
+                  onChange={(e) => setKwSize(e.target.value)}
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                  placeholder="e.g., 8"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-semibold">System Type</label>
+                <select
+                  value={systemType}
+                  onChange={(e) => setSystemType(e.target.value)}
+                  className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                >
+                  <option value="">Select system type...</option>
+                  <option value="On-Grid">On-Grid</option>
+                  <option value="Hybrid">Hybrid</option>
+                  <option value="Off-Grid">Off-Grid</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-semibold">Package Inclusions</label>
+              <textarea
+                value={includesText}
+                onChange={(e) => setIncludesText(e.target.value)}
+                className="min-h-[100px] rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                placeholder="e.g., 620W solar panels, hybrid inverter, battery, installation materials, labor..."
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-semibold">Quotation PDF</label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setQuotationFile(e.target.files?.[0] ?? null)}
+                className="block w-full rounded-xl border border-black/10 bg-white px-4 py-2 text-sm"
+              />
+              <div className="text-xs text-black/50">
+                Upload the official quotation file for this solar package.
+              </div>
             </div>
           </div>
         ) : null}

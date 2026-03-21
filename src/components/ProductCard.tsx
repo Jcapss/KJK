@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "./ui";
 import type { ProductRow } from "../types/db";
 import { supabase } from "../lib/supabase";
@@ -75,6 +75,12 @@ export default function ProductCard({
   const isServiceQuote =
     item.category_slug === "services" && Number(item.price) === 0;
 
+  const isSolarService =
+    item.category_slug === "services" &&
+    (typeof item.kw_size === "number" ||
+      !!item.system_type ||
+      !!item.quotation_pdf);
+
   const categoryName =
     item.category_slug === "cpu"
       ? "CPU"
@@ -91,6 +97,14 @@ export default function ProductCard({
     profile.role !== "admin" &&
     (profile.approval_status === "pending" ||
       profile.approval_status === "rejected");
+
+  const solarMeta = useMemo(() => {
+    if (!isSolarService) return "";
+    const parts: string[] = [];
+    if (typeof item.kw_size === "number") parts.push(`${item.kw_size}KW`);
+    if (item.system_type) parts.push(item.system_type);
+    return parts.join(" • ");
+  }, [isSolarService, item.kw_size, item.system_type]);
 
   return (
     <button
@@ -121,10 +135,17 @@ export default function ProductCard({
         </div>
 
         <div className="p-4 flex flex-col flex-1">
-          <div className="min-h-[56px]">
+          <div className="min-h-[72px]">
             <div className="text-base font-semibold text-black line-clamp-2">
               {item.name}
             </div>
+
+            {isSolarService && solarMeta ? (
+              <div className="mt-1 text-xs font-semibold text-green-700">
+                {solarMeta}
+              </div>
+            ) : null}
+
             <div className="mt-1 text-sm text-black/60 line-clamp-2">
               {item.description}
             </div>
@@ -149,7 +170,9 @@ export default function ProductCard({
               )}
 
               {item.category_slug === "services" ? (
-                <div className="text-xs text-black/50">Service</div>
+                <div className="text-xs text-black/50">
+                  {isSolarService ? "Solar Service" : "Service"}
+                </div>
               ) : !canViewPrice && !checkingAccess ? (
                 <div className="text-xs text-black/50">
                   Approved accounts only
