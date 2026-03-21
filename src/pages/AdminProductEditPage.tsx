@@ -13,7 +13,7 @@ type CategoryRow = {
 type BrandRow = {
   id: string;
   name: string;
-  category_slug: string; // 'gpu' | 'motherboard' | 'all'
+  category_slug: string; // 'gpu' | 'motherboard' | 'laptop' | 'all'
   is_active: boolean;
 };
 
@@ -49,6 +49,16 @@ function normalizeBrand(input: string) {
     palit: "Palit",
     galax: "GALAX",
     pny: "PNY",
+    acer: "Acer",
+    lenovo: "Lenovo",
+    dell: "Dell",
+    hp: "HP",
+    apple: "Apple",
+    samsung: "Samsung",
+    huawei: "Huawei",
+    microsoft: "Microsoft",
+    razer: "Razer",
+    thinkpad: "ThinkPad",
   };
 
   return CANON[key] ?? cleaned;
@@ -94,19 +104,19 @@ export default function AdminProductEditPage() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const isGpuOrMobo = useMemo(() => {
+  const supportsPartnerBrand = useMemo(() => {
     const s = categorySlug.trim().toLowerCase();
-    return s === "gpu" || s === "motherboard";
+    return s === "gpu" || s === "motherboard" || s === "laptop";
   }, [categorySlug]);
 
-  // ✅ reset partner brand + UI bits when switching away from GPU/MOBO
+  // ✅ reset partner brand + UI bits when switching away from supported categories
   useEffect(() => {
-    if (!isGpuOrMobo) {
+    if (!supportsPartnerBrand) {
       setPartnerBrand("");
       setNewPartnerBrand("");
       setPartnerBrandOptions([]);
     }
-  }, [isGpuOrMobo]);
+  }, [supportsPartnerBrand]);
 
   // preview for newly selected file
   useEffect(() => {
@@ -202,12 +212,12 @@ export default function AdminProductEditPage() {
     };
   }, [id]);
 
-  // ✅ load partner brands when GPU/MOBO
+  // ✅ load partner brands when supported
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      if (!isGpuOrMobo) return;
+      if (!supportsPartnerBrand) return;
 
       try {
         setPartnerBrandsLoading(true);
@@ -237,7 +247,7 @@ export default function AdminProductEditPage() {
     return () => {
       alive = false;
     };
-  }, [isGpuOrMobo, categorySlug]);
+  }, [supportsPartnerBrand, categorySlug]);
 
   async function uploadProductImage(file: File) {
     const maxMB = 5;
@@ -266,7 +276,7 @@ export default function AdminProductEditPage() {
   }
 
   async function reloadPartnerBrands() {
-    if (!isGpuOrMobo) return;
+    if (!supportsPartnerBrand) return;
 
     const cat = categorySlug.trim().toLowerCase();
     const { data, error } = await supabase
@@ -281,18 +291,17 @@ export default function AdminProductEditPage() {
   }
 
   async function handleAddPartnerBrand() {
-    if (!isGpuOrMobo) return;
+    if (!supportsPartnerBrand) return;
 
     const cat = categorySlug.trim().toLowerCase();
     const clean = normalizePartnerBrand(newPartnerBrand);
     if (!clean) return;
 
-    // ✅ prevent duplicates locally (case-insensitive)
     const exists = partnerBrandOptions.some(
       (b) => b.name.trim().toLowerCase() === clean.trim().toLowerCase()
     );
     if (exists) {
-      setPartnerBrand(clean); // just select it
+      setPartnerBrand(clean);
       setNewPartnerBrand("");
       return;
     }
@@ -301,7 +310,7 @@ export default function AdminProductEditPage() {
     try {
       const { error } = await supabase.from("product_brands").insert({
         name: clean,
-        category_slug: cat, // gpu or motherboard
+        category_slug: cat,
         is_active: true,
       });
 
@@ -309,7 +318,7 @@ export default function AdminProductEditPage() {
 
       setNewPartnerBrand("");
       await reloadPartnerBrands();
-      setPartnerBrand(clean); // auto-select
+      setPartnerBrand(clean);
     } catch (e: any) {
       alert(e?.message ?? "Failed to add partner brand.");
     } finally {
@@ -358,15 +367,18 @@ export default function AdminProductEditPage() {
       if (imageFile) image_url = await uploadProductImage(imageFile);
 
       const normalizedBrand = normalizeBrand(brand);
-      const normalizedPartner = isGpuOrMobo ? normalizePartnerBrand(partnerBrand) : "";
+      const normalizedPartner = supportsPartnerBrand
+        ? normalizePartnerBrand(partnerBrand)
+        : "";
 
       const payload = {
         name: cleanName,
         brand: normalizedBrand ? normalizedBrand : null,
-        partner_brand: isGpuOrMobo && normalizedPartner ? normalizedPartner : null,
+        partner_brand:
+          supportsPartnerBrand && normalizedPartner ? normalizedPartner : null,
         description: description.trim(),
         price: numPrice,
-        stock: 0, // ✅ keep DB happy
+        stock: 0,
         badge: badge.trim() || null,
         category_slug: categorySlug,
         image_url,
@@ -427,7 +439,6 @@ export default function AdminProductEditPage() {
           onSubmit={handleSubmit}
           className="mt-5 grid gap-4 rounded-2xl border border-black/10 bg-white p-5"
         >
-          {/* thumbnail */}
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 overflow-hidden rounded-xl border border-black/10 bg-black/5">
               {imagePreview || existingImageUrl ? (
@@ -453,7 +464,6 @@ export default function AdminProductEditPage() {
             />
           </div>
 
-          {/* Brand */}
           <div className="grid gap-2">
             <label className="text-sm font-semibold">
               Brand <span className="text-xs text-black/50">(Chip/General)</span>
@@ -462,12 +472,11 @@ export default function AdminProductEditPage() {
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
               className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="e.g., AMD, NVIDIA, Intel"
+              placeholder="e.g., AMD, NVIDIA, Intel, ASUS, Acer"
             />
           </div>
 
-          {/* ✅ Partner Brand (GPU/MOBO only) */}
-          {isGpuOrMobo ? (
+          {supportsPartnerBrand ? (
             <div className="grid gap-2">
               <label className="text-sm font-semibold">Partner Brand</label>
 
@@ -487,12 +496,11 @@ export default function AdminProductEditPage() {
                 ))}
               </select>
 
-              {/* add new partner brand */}
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                 <input
                   value={newPartnerBrand}
                   onChange={(e) => setNewPartnerBrand(e.target.value)}
-                  placeholder="Add new brand (e.g., Palit, Sapphire)"
+                  placeholder="Add new brand (e.g., ThinkPad, ASUS, Acer)"
                   className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
                 />
                 <button
@@ -506,7 +514,7 @@ export default function AdminProductEditPage() {
               </div>
 
               <div className="text-[11px] text-black/50">
-                Only for <b>GPU</b> and <b>Motherboard</b>. Brands come from <b>product_brands</b> table.
+                Only for <b>GPU</b>, <b>Motherboard</b>, and <b>Laptop</b>. Brands come from <b>product_brands</b> table.
               </div>
             </div>
           ) : null}
@@ -521,7 +529,6 @@ export default function AdminProductEditPage() {
             />
           </div>
 
-          {/* IMAGE */}
           <div className="grid gap-2">
             <label className="text-sm font-semibold">Product Image</label>
             <input

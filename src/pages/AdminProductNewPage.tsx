@@ -13,7 +13,7 @@ type CategoryRow = {
 type BrandRow = {
   id: string;
   name: string;
-  category_slug: string; // 'gpu' | 'motherboard' | 'all'
+  category_slug: string; // 'gpu' | 'motherboard' | 'laptop' | 'all'
   is_active: boolean;
 };
 
@@ -49,6 +49,15 @@ function normalizeBrand(input: string) {
     palit: "Palit",
     galax: "GALAX",
     pny: "PNY",
+    acer: "Acer",
+    lenovo: "Lenovo",
+    dell: "Dell",
+    hp: "HP",
+    apple: "Apple",
+    samsung: "Samsung",
+    huawei: "Huawei",
+    microsoft: "Microsoft",
+    razer: "Razer",
   };
 
   return CANON[key] ?? cleaned;
@@ -91,19 +100,19 @@ export default function AdminProductNewPage() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const isGpuOrMobo = useMemo(() => {
+  const supportsPartnerBrand = useMemo(() => {
     const s = categorySlug.trim().toLowerCase();
-    return s === "gpu" || s === "motherboard";
+    return s === "gpu" || s === "motherboard" || s === "laptop";
   }, [categorySlug]);
 
-  // ✅ reset partner brand UI when switching away from gpu/mobo
+  // ✅ reset partner brand UI when switching away from supported categories
   useEffect(() => {
-    if (!isGpuOrMobo) {
+    if (!supportsPartnerBrand) {
       setPartnerBrand("");
       setNewPartnerBrand("");
       setPartnerBrandOptions([]);
     }
-  }, [isGpuOrMobo]);
+  }, [supportsPartnerBrand]);
 
   useEffect(() => {
     if (!imageFile) {
@@ -158,12 +167,12 @@ export default function AdminProductNewPage() {
     };
   }, []);
 
-  // ✅ load partner brands when GPU/MOBO
+  // ✅ load partner brands when category supports it
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      if (!isGpuOrMobo) return;
+      if (!supportsPartnerBrand) return;
 
       try {
         setPartnerBrandsLoading(true);
@@ -192,7 +201,7 @@ export default function AdminProductNewPage() {
     return () => {
       alive = false;
     };
-  }, [isGpuOrMobo, categorySlug]);
+  }, [supportsPartnerBrand, categorySlug]);
 
   async function uploadProductImage(file: File) {
     const maxMB = 5;
@@ -221,7 +230,7 @@ export default function AdminProductNewPage() {
   }
 
   async function reloadPartnerBrands() {
-    if (!isGpuOrMobo) return;
+    if (!supportsPartnerBrand) return;
 
     const cat = categorySlug.trim().toLowerCase();
     const { data, error } = await supabase
@@ -236,16 +245,16 @@ export default function AdminProductNewPage() {
   }
 
   async function handleAddPartnerBrand() {
-    if (!isGpuOrMobo) return;
+    if (!supportsPartnerBrand) return;
 
     const cat = categorySlug.trim().toLowerCase();
     const clean = normalizePartnerBrand(newPartnerBrand);
     if (!clean) return;
 
-    // ✅ prevent duplicates locally (case-insensitive)
     const exists = partnerBrandOptions.some(
       (b) => b.name.trim().toLowerCase() === clean.trim().toLowerCase()
     );
+
     if (exists) {
       setPartnerBrand(clean);
       setNewPartnerBrand("");
@@ -256,7 +265,7 @@ export default function AdminProductNewPage() {
     try {
       const { error } = await supabase.from("product_brands").insert({
         name: clean,
-        category_slug: cat, // gpu or motherboard
+        category_slug: cat,
         is_active: true,
       });
 
@@ -264,7 +273,7 @@ export default function AdminProductNewPage() {
 
       setNewPartnerBrand("");
       await reloadPartnerBrands();
-      setPartnerBrand(clean); // auto-select
+      setPartnerBrand(clean);
     } catch (e: any) {
       alert(e?.message ?? "Failed to add partner brand.");
     } finally {
@@ -302,7 +311,9 @@ export default function AdminProductNewPage() {
     if (!categorySlug) return setErr("Please select a category.");
 
     const numPrice = Number(price);
-    if (Number.isNaN(numPrice) || numPrice < 0) return setErr("Price must be 0 or more.");
+    if (Number.isNaN(numPrice) || numPrice < 0) {
+      return setErr("Price must be 0 or more.");
+    }
 
     setSaving(true);
 
@@ -311,12 +322,15 @@ export default function AdminProductNewPage() {
       if (imageFile) image_url = await uploadProductImage(imageFile);
 
       const normalizedBrand = normalizeBrand(brand);
-      const normalizedPartner = isGpuOrMobo ? normalizePartnerBrand(partnerBrand) : "";
+      const normalizedPartner = supportsPartnerBrand
+        ? normalizePartnerBrand(partnerBrand)
+        : "";
 
       const payload = {
         name: cleanName,
         brand: normalizedBrand ? normalizedBrand : null,
-        partner_brand: isGpuOrMobo && normalizedPartner ? normalizedPartner : null,
+        partner_brand:
+          supportsPartnerBrand && normalizedPartner ? normalizedPartner : null,
         description: description.trim(),
         price: numPrice,
         stock: 0,
@@ -362,11 +376,14 @@ export default function AdminProductNewPage() {
         onSubmit={handleSubmit}
         className="mt-5 grid gap-4 rounded-2xl border border-black/10 bg-white p-5"
       >
-        {/* thumbnail preview */}
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 overflow-hidden rounded-xl border border-black/10 bg-black/5">
             {imagePreview ? (
-              <img src={imagePreview} alt="Product thumbnail" className="h-full w-full object-cover" />
+              <img
+                src={imagePreview}
+                alt="Product thumbnail"
+                className="h-full w-full object-cover"
+              />
             ) : (
               <div className="grid h-full w-full place-items-center text-lg">📦</div>
             )}
@@ -392,15 +409,16 @@ export default function AdminProductNewPage() {
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
             className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-            placeholder="e.g., AMD, NVIDIA, Intel"
+            placeholder="e.g., AMD, NVIDIA, Intel, ASUS, Acer"
           />
           <div className="text-[11px] text-black/50">
-            For GPU/Motherboard, this is usually the chip brand (AMD/NVIDIA/Intel).
+            For GPU/Motherboard, this is usually the chip brand
+            (AMD/NVIDIA/Intel). For laptops, this can be the general or main
+            brand if needed.
           </div>
         </div>
 
-        {/* ✅ Partner Brand for GPU/MOBO */}
-        {isGpuOrMobo ? (
+        {supportsPartnerBrand ? (
           <div className="grid gap-2">
             <label className="text-sm font-semibold">Partner Brand</label>
 
@@ -420,12 +438,11 @@ export default function AdminProductNewPage() {
               ))}
             </select>
 
-            {/* ✅ add new partner brand inline */}
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <input
                 value={newPartnerBrand}
                 onChange={(e) => setNewPartnerBrand(e.target.value)}
-                placeholder="Add new brand (e.g., Palit, Sapphire)"
+                placeholder="Add new brand (e.g., Palit, Sapphire, ASUS, Acer)"
                 className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
               />
               <button
@@ -439,7 +456,8 @@ export default function AdminProductNewPage() {
             </div>
 
             <div className="text-[11px] text-black/50">
-              Only for <b>GPU</b> and <b>Motherboard</b>. Brands come from <b>product_brands</b> table.
+              Only for <b>GPU</b>, <b>Motherboard</b>, and <b>Laptop</b>. Brands
+              come from <b>product_brands</b> table.
             </div>
           </div>
         ) : null}
@@ -454,7 +472,6 @@ export default function AdminProductNewPage() {
           />
         </div>
 
-        {/* IMAGE UPLOAD */}
         <div className="grid gap-2">
           <label className="text-sm font-semibold">Product Image</label>
           <input
@@ -471,7 +488,9 @@ export default function AdminProductNewPage() {
               </div>
             </div>
           ) : (
-            <div className="text-xs text-black/50">Optional. Choose an image file to upload.</div>
+            <div className="text-xs text-black/50">
+              Optional. Choose an image file to upload.
+            </div>
           )}
         </div>
 
@@ -522,7 +541,11 @@ export default function AdminProductNewPage() {
         </div>
 
         <label className="inline-flex items-center gap-2 text-sm text-black/70">
-          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
           Active
         </label>
 

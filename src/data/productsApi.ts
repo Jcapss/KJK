@@ -4,7 +4,6 @@ import type { ProductRow } from "../types/db";
 
 /** escape commas for .or() filters */
 function escOrValue(v: string) {
-  // supabase .or() uses commas to separate conditions
   return v.replaceAll(",", "\\,");
 }
 
@@ -15,7 +14,6 @@ function normalizeBrandLabel(raw: string) {
 
   const key = s.toLowerCase();
 
-  // common all-caps brands
   const upper = new Set([
     "amd",
     "intel",
@@ -34,7 +32,6 @@ function normalizeBrandLabel(raw: string) {
 
   if (upper.has(key)) return key.toUpperCase();
 
-  // title case fallback
   return s
     .toLowerCase()
     .split(" ")
@@ -42,8 +39,8 @@ function normalizeBrandLabel(raw: string) {
     .join(" ");
 }
 
-/** ✅ helper: apply category filter that supports string OR string[] */
-function applyCategoryFilter<T extends ReturnType<typeof supabase.from>>(
+/** helper: apply category filter that supports string OR string[] */
+function applyCategoryFilter(
   query: any,
   category?: string | string[]
 ) {
@@ -63,10 +60,10 @@ function applyCategoryFilter<T extends ReturnType<typeof supabase.from>>(
 }
 
 export async function fetchProducts(args?: {
-  category?: string | string[]; // ✅ allow array (laptop/laptops)
+  category?: string | string[];
   q?: string;
-  brands?: string[]; // chip/general brand checkbox list
-  partnerBrand?: string; // dropdown for GPU/Mobo
+  brands?: string[];      // PRODUCT BRANDS checkbox list
+  partnerBrand?: string;  // PARTNER BRAND dropdown
 }): Promise<ProductRow[]> {
   let query = supabase
     .from("products")
@@ -76,26 +73,31 @@ export async function fetchProducts(args?: {
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
-  // ✅ category filter (supports array)
   query = applyCategoryFilter(query, args?.category);
 
-  // ✅ search (keep your original behavior: name only)
   const q = args?.q?.trim();
-  if (q) query = query.ilike("name", `%${q}%`);
+  if (q) {
+    query = query.ilike("name", `%${q}%`);
+  }
 
-  // ✅ Case-insensitive brand filter (your original logic)
+  // ✅ PRODUCT BRANDS always filter by `brand`
   const brands = (args?.brands ?? [])
     .map((b) => String(b ?? "").trim())
     .filter(Boolean);
 
   if (brands.length > 0) {
-    const orStr = brands.map((b) => `brand.ilike.${escOrValue(b)}`).join(",");
+    const orStr = brands
+      .map((b) => `brand.ilike.${escOrValue(b)}`)
+      .join(",");
+
     query = query.or(orStr);
   }
 
-  // ✅ Partner brand filter (ILIKE without % = exact match ignoring case)
-  const pb = args?.partnerBrand?.trim();
-  if (pb) query = query.ilike("partner_brand", pb);
+  // ✅ PARTNER BRAND always filters by `partner_brand`
+  const pb = String(args?.partnerBrand ?? "").trim();
+  if (pb) {
+    query = query.ilike("partner_brand", pb);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -116,9 +118,7 @@ export async function fetchProductById(id: string): Promise<ProductRow | null> {
   return (data ?? null) as ProductRow | null;
 }
 
-/**
- * ✅ Get distinct chip/general brands for checkbox list (dedup case-insensitive)
- */
+/** Get distinct PRODUCT BRANDS for checkbox list */
 export async function fetchBrands(args?: {
   category?: string | string[];
 }): Promise<string[]> {
@@ -128,7 +128,6 @@ export async function fetchBrands(args?: {
     .eq("is_active", true)
     .not("brand", "is", null);
 
-  // ✅ category filter (supports array)
   q = applyCategoryFilter(q, args?.category);
 
   const { data, error } = await q;
@@ -138,7 +137,6 @@ export async function fetchBrands(args?: {
     .map((r: any) => String(r.brand ?? "").trim())
     .filter(Boolean);
 
-  // dedupe case-insensitive; keep a nice label
   const map = new Map<string, string>();
   for (const b of raw) {
     const key = b.toLowerCase();
@@ -148,9 +146,7 @@ export async function fetchBrands(args?: {
   return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * ✅ Get distinct partner brands for dropdown (GPU/Mobo)
- */
+/** Get distinct PARTNER BRANDS for dropdown */
 export async function fetchPartnerBrands(args?: {
   category?: string | string[];
 }): Promise<string[]> {
@@ -160,7 +156,6 @@ export async function fetchPartnerBrands(args?: {
     .eq("is_active", true)
     .not("partner_brand", "is", null);
 
-  // ✅ category filter (supports array)
   q = applyCategoryFilter(q, args?.category);
 
   const { data, error } = await q;

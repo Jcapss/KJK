@@ -105,13 +105,15 @@ export default function CategoryPage() {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [brandLoading, setBrandLoading] = useState(false);
 
-  const isGpuOrMobo = slug === "gpu" || slug === "motherboard";
   const [partnerOptions, setPartnerOptions] = useState<string[]>([]);
-  const [partnerBrand, setPartnerBrand] = useState<string>("");
+  const [partnerBrand, setPartnerBrand] = useState("");
   const [partnerLoading, setPartnerLoading] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortOption>("default");
+
+  // show partner dropdown whenever this category has partner brands
+  const hasPartnerBrands = partnerOptions.length > 0;
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -121,6 +123,7 @@ export default function CategoryPage() {
     localStorage.setItem(CART_ITEMS_KEY, JSON.stringify(itemCache));
   }, [itemCache]);
 
+  // product brands (checkboxes)
   useEffect(() => {
     let alive = true;
 
@@ -136,7 +139,6 @@ export default function CategoryPage() {
 
         const brands = await fetchBrands({ category: slug });
         if (!alive) return;
-
         setBrandOptions(brands);
       } catch {
         if (!alive) return;
@@ -152,21 +154,23 @@ export default function CategoryPage() {
     };
   }, [slug]);
 
+  // partner brands (dropdown)
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
-        setPartnerBrand("");
-        setPartnerOptions([]);
-
-        if (!isGpuOrMobo || !slug) return;
-
         setPartnerLoading(true);
-        const opts = await fetchPartnerBrands({ category: slug });
-        if (!alive) return;
+        setPartnerBrand("");
 
-        setPartnerOptions(opts);
+        if (!slug) {
+          setPartnerOptions([]);
+          return;
+        }
+
+        const brands = await fetchPartnerBrands({ category: slug });
+        if (!alive) return;
+        setPartnerOptions(brands);
       } catch {
         if (!alive) return;
         setPartnerOptions([]);
@@ -179,8 +183,9 @@ export default function CategoryPage() {
     return () => {
       alive = false;
     };
-  }, [slug, isGpuOrMobo]);
+  }, [slug]);
 
+  // fetch products
   useEffect(() => {
     let alive = true;
 
@@ -198,7 +203,7 @@ export default function CategoryPage() {
           category: categoryCandidates.length ? categoryCandidates : slug,
           q: query,
           brands: selectedBrands,
-          partnerBrand: isGpuOrMobo ? partnerBrand || undefined : undefined,
+          partnerBrand: partnerBrand || undefined,
         });
 
         if (!alive) return;
@@ -232,7 +237,7 @@ export default function CategoryPage() {
     return () => {
       alive = false;
     };
-  }, [slug, categoryCandidates, query, selectedBrands, partnerBrand, isGpuOrMobo]);
+  }, [slug, categoryCandidates, query, selectedBrands, partnerBrand]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -370,16 +375,14 @@ export default function CategoryPage() {
                 </div>
               )}
 
-              {isGpuOrMobo ? (
-                <div className="mt-4">
+              {hasPartnerBrands ? (
+                <div className="mt-5">
                   <div className="text-xs font-extrabold tracking-wide text-black/70">
                     PARTNER BRAND
                   </div>
 
                   {partnerLoading ? (
-                    <div className="mt-2 text-sm text-black/60">
-                      Loading partner brands...
-                    </div>
+                    <div className="mt-2 text-sm text-black/60">Loading partner brands...</div>
                   ) : (
                     <select
                       value={partnerBrand}
@@ -394,10 +397,6 @@ export default function CategoryPage() {
                       ))}
                     </select>
                   )}
-
-                  <div className="mt-2 text-[11px] text-black/50">
-                    GPU/Motherboard partners like MSI, Gigabyte, ASUS, etc.
-                  </div>
                 </div>
               ) : null}
 
