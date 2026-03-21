@@ -1,5 +1,4 @@
-// src/pages/AdminUsersPage.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../components/AdminLayout";
 import { supabase } from "../lib/supabase";
 
@@ -12,11 +11,15 @@ type ProfileRow = {
   created_at?: string;
 };
 
+const ITEMS_PER_PAGE = 10;
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<ProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function loadUsers() {
     setLoading(true);
@@ -69,6 +72,20 @@ export default function AdminUsersPage() {
     loadUsers();
   }, []);
 
+  // ✅ PAGINATION LOGIC
+  const totalPages = Math.max(1, Math.ceil(users.length / ITEMS_PER_PAGE));
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return users.slice(start, start + ITEMS_PER_PAGE);
+  }, [users, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   function statusBadge(status: string) {
     if (status === "approved") {
       return (
@@ -118,6 +135,11 @@ export default function AdminUsersPage() {
         </div>
       ) : null}
 
+      {/* INFO */}
+      <div className="mt-4 text-sm text-black/60">
+        Showing {paginatedUsers.length} of {users.length} users • Page {currentPage} of {totalPages}
+      </div>
+
       <div className="mt-6 overflow-hidden rounded-3xl border border-black/10 bg-white">
         {loading ? (
           <div className="p-6 text-sm text-black/60">Loading users...</div>
@@ -125,7 +147,7 @@ export default function AdminUsersPage() {
           <div className="p-6 text-sm text-black/60">No registered users found.</div>
         ) : (
           <>
-            {/* Desktop table */}
+            {/* DESKTOP */}
             <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-black/[0.03]">
@@ -140,11 +162,11 @@ export default function AdminUsersPage() {
                 </thead>
 
                 <tbody>
-                  {users.map((user) => {
+                  {paginatedUsers.map((user) => {
                     const isBusy = savingId === user.id;
 
                     return (
-                      <tr key={user.id} className="border-b border-black/10 last:border-b-0">
+                      <tr key={user.id} className="border-b border-black/10">
                         <td className="px-4 py-4 font-medium">
                           {user.full_name || "No name"}
                         </td>
@@ -159,7 +181,9 @@ export default function AdminUsersPage() {
                           </span>
                         </td>
 
-                        <td className="px-4 py-4">{statusBadge(user.approval_status)}</td>
+                        <td className="px-4 py-4">
+                          {statusBadge(user.approval_status)}
+                        </td>
 
                         <td className="px-4 py-4 text-black/60">
                           {user.created_at
@@ -168,32 +192,21 @@ export default function AdminUsersPage() {
                         </td>
 
                         <td className="px-4 py-4">
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex gap-2">
                             <button
-                              type="button"
                               disabled={isBusy || user.approval_status === "approved"}
                               onClick={() => updateStatus(user.id, "approved")}
-                              className="rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white"
                             >
                               {isBusy ? "Saving..." : "Approve"}
                             </button>
 
                             <button
-                              type="button"
                               disabled={isBusy || user.approval_status === "rejected"}
                               onClick={() => updateStatus(user.id, "rejected")}
-                              className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white"
                             >
                               {isBusy ? "Saving..." : "Reject"}
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={isBusy || user.approval_status === "pending"}
-                              onClick={() => updateStatus(user.id, "pending")}
-                              className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {isBusy ? "Saving..." : "Set Pending"}
                             </button>
                           </div>
                         </td>
@@ -204,62 +217,32 @@ export default function AdminUsersPage() {
               </table>
             </div>
 
-            {/* Mobile cards */}
+            {/* MOBILE */}
             <div className="space-y-3 p-4 md:hidden">
-              {users.map((user) => {
+              {paginatedUsers.map((user) => {
                 const isBusy = savingId === user.id;
 
                 return (
-                  <div
-                    key={user.id}
-                    className="rounded-2xl border border-black/10 bg-white p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold">{user.full_name || "No name"}</div>
-                        <div className="text-sm text-black/60">
-                          {user.email || "No email"}
-                        </div>
-                      </div>
-                      {statusBadge(user.approval_status)}
-                    </div>
+                  <div key={user.id} className="rounded-2xl border p-4">
+                    <div className="font-semibold">{user.full_name}</div>
+                    <div className="text-sm text-black/60">{user.email}</div>
+                    <div className="mt-2">{statusBadge(user.approval_status)}</div>
 
-                    <div className="mt-3 text-xs text-black/60">
-                      <div>Role: {user.role}</div>
-                      <div className="mt-1">
-                        Created:{" "}
-                        {user.created_at
-                          ? new Date(user.created_at).toLocaleString()
-                          : "—"}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-3 flex gap-2">
                       <button
-                        type="button"
-                        disabled={isBusy || user.approval_status === "approved"}
+                        disabled={isBusy}
                         onClick={() => updateStatus(user.id, "approved")}
-                        className="rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl bg-green-600 px-3 py-2 text-xs text-white"
                       >
-                        {isBusy ? "Saving..." : "Approve"}
+                        Approve
                       </button>
 
                       <button
-                        type="button"
-                        disabled={isBusy || user.approval_status === "rejected"}
+                        disabled={isBusy}
                         onClick={() => updateStatus(user.id, "rejected")}
-                        className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl bg-red-600 px-3 py-2 text-xs text-white"
                       >
-                        {isBusy ? "Saving..." : "Reject"}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isBusy || user.approval_status === "pending"}
-                        onClick={() => updateStatus(user.id, "pending")}
-                        className="rounded-xl border border-black/10 bg-white px-3 py-2 text-xs font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isBusy ? "Saving..." : "Set Pending"}
+                        Reject
                       </button>
                     </div>
                   </div>
@@ -269,6 +252,39 @@ export default function AdminUsersPage() {
           </>
         )}
       </div>
+
+      {/* PAGINATION */}
+      {totalPages > 1 && (
+        <div className="mt-5 flex justify-center gap-2">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+            className="rounded-lg border px-3 py-1 text-sm"
+          >
+            Prev
+          </button>
+
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentPage(i + 1)}
+              className={`px-3 py-1 rounded ${
+                currentPage === i + 1 ? "bg-black text-white" : "border"
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+
+          <button
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+            className="rounded-lg border px-3 py-1 text-sm"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </AdminLayout>
   );
 }

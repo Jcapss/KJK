@@ -1,5 +1,5 @@
 // src/pages/AdminCategoriesPage.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../components/AdminLayout";
 import { supabase } from "../lib/supabase";
 
@@ -13,6 +13,7 @@ type CategoryRow = {
 };
 
 const BUCKET = "category-images";
+const ITEMS_PER_PAGE = 5;
 
 function notifyCategoriesUpdated() {
   localStorage.setItem("kjk_categories_refresh_v1", String(Date.now()));
@@ -65,6 +66,8 @@ export default function AdminCategoriesPage() {
     null
   );
 
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => setSlug(slugify(label)), [label]);
 
   // ✅ AUTH CHECK (very important for Storage uploads)
@@ -78,14 +81,20 @@ export default function AdminCategoriesPage() {
 
   // previews
   useEffect(() => {
-    if (!imageFile) return;
+    if (!imageFile) {
+      setImagePreview("");
+      return;
+    }
     const url = URL.createObjectURL(imageFile);
     setImagePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
   useEffect(() => {
-    if (!editImageFile) return;
+    if (!editImageFile) {
+      setEditImagePreview("");
+      return;
+    }
     const url = URL.createObjectURL(editImageFile);
     setEditImagePreview(url);
     return () => URL.revokeObjectURL(url);
@@ -125,7 +134,7 @@ export default function AdminCategoriesPage() {
   }
 
   async function uploadCategoryImage(file: File) {
-    await assertAuthed(); // ✅ if not authed, fail early
+    await assertAuthed();
 
     const maxMB = 5;
     if (file.size > maxMB * 1024 * 1024) {
@@ -150,7 +159,7 @@ export default function AdminCategoriesPage() {
 
     if (!publicUrl) throw new Error("Failed to get image URL.");
 
-    return `${publicUrl}?v=${Date.now()}`; // cache bust
+    return `${publicUrl}?v=${Date.now()}`;
   }
 
   async function addCategory(e: React.FormEvent) {
@@ -179,7 +188,6 @@ export default function AdminCategoriesPage() {
 
       if (error) throw error;
 
-      // ✅ auto-reflect in dropdown
       notifyCategoriesUpdated();
 
       setLabel("");
@@ -187,6 +195,7 @@ export default function AdminCategoriesPage() {
       setImageFile(null);
       setImagePreview("");
       await load();
+      setCurrentPage(1);
     } catch (e: any) {
       setErr(e?.message ?? "Failed to add category.");
     } finally {
@@ -210,7 +219,6 @@ export default function AdminCategoriesPage() {
         prev.map((r) => (r.id === id ? { ...r, is_active: next } : r))
       );
 
-      // ✅ auto-reflect in dropdown
       notifyCategoriesUpdated();
     } catch (e: any) {
       setErr(e?.message ?? "Failed to update category.");
@@ -268,7 +276,6 @@ export default function AdminCategoriesPage() {
 
       if (error) throw error;
 
-      // ✅ auto-reflect in dropdown
       notifyCategoriesUpdated();
 
       await load();
@@ -297,7 +304,6 @@ export default function AdminCategoriesPage() {
 
       if (error) throw error;
 
-      // ✅ auto-reflect in dropdown
       notifyCategoriesUpdated();
 
       await load();
@@ -305,6 +311,23 @@ export default function AdminCategoriesPage() {
       setErr(e?.message ?? "Failed to delete category.");
     }
   }
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(rows.length / ITEMS_PER_PAGE)),
+    [rows.length]
+  );
+
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    return rows.slice(start, end);
+  }, [rows, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <AdminLayout>
@@ -401,69 +424,118 @@ export default function AdminCategoriesPage() {
 
       {/* LIST */}
       <div className="mt-6 rounded-2xl border border-black/10 bg-white p-5">
-        <div className="text-sm font-extrabold">Existing Categories</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-extrabold">Existing Categories</div>
+          {!loading && rows.length > 0 ? (
+            <div className="text-xs text-black/50">
+              Showing {paginatedRows.length} of {rows.length} • Page {currentPage} of{" "}
+              {totalPages}
+            </div>
+          ) : null}
+        </div>
 
         {loading ? (
           <div className="mt-3 text-sm text-black/60">Loading...</div>
         ) : rows.length === 0 ? (
           <div className="mt-3 text-sm text-black/60">No categories yet.</div>
         ) : (
-          <div className="mt-4 space-y-2">
-            {rows.map((r) => (
-              <div
-                key={r.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/10 px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-16 overflow-hidden rounded-xl border border-black/10 bg-black/5">
-                    {r.image_url ? (
-                      <img
-                        src={r.image_url}
-                        alt={r.label}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : null}
+          <>
+            <div className="mt-4 space-y-2">
+              {paginatedRows.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/10 px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-16 overflow-hidden rounded-xl border border-black/10 bg-black/5">
+                      {r.image_url ? (
+                        <img
+                          src={r.image_url}
+                          alt={r.label}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : null}
+                    </div>
+
+                    <div>
+                      <div className="font-semibold">{r.label}</div>
+                      <div className="text-xs text-black/60">{r.slug}</div>
+                    </div>
                   </div>
 
-                  <div>
-                    <div className="font-semibold">{r.label}</div>
-                    <div className="text-xs text-black/60">{r.slug}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => toggleActive(r.id, !r.is_active)}
+                      className={[
+                        "rounded-xl px-3 py-2 text-sm font-semibold border",
+                        r.is_active
+                          ? "border-green-500/30 bg-green-50 text-green-700"
+                          : "border-gray-500/20 bg-gray-50 text-gray-700",
+                      ].join(" ")}
+                      type="button"
+                    >
+                      {r.is_active ? "Active" : "Inactive"}
+                    </button>
+
+                    <button
+                      onClick={() => openEdit(r)}
+                      className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold hover:bg-black/5"
+                      type="button"
+                    >
+                      ✏️ Edit
+                    </button>
+
+                    <button
+                      onClick={() => deleteCategory(r)}
+                      className="rounded-xl border border-red-500/20 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                      type="button"
+                    >
+                      🗑️ Delete
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => toggleActive(r.id, !r.is_active)}
-                    className={[
-                      "rounded-xl px-3 py-2 text-sm font-semibold border",
-                      r.is_active
-                        ? "border-green-500/30 bg-green-50 text-green-700"
-                        : "border-gray-500/20 bg-gray-50 text-gray-700",
-                    ].join(" ")}
-                    type="button"
-                  >
-                    {r.is_active ? "Active" : "Inactive"}
-                  </button>
+            {totalPages > 1 ? (
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Prev
+                </button>
 
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <button
-                    onClick={() => openEdit(r)}
-                    className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-semibold hover:bg-black/5"
+                    key={page}
                     type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                      currentPage === page
+                        ? "border-black bg-black text-white"
+                        : "border-black/10 bg-white text-black hover:bg-black/5"
+                    }`}
                   >
-                    ✏️ Edit
+                    {page}
                   </button>
+                ))}
 
-                  <button
-                    onClick={() => deleteCategory(r)}
-                    className="rounded-xl border border-red-500/20 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
-                    type="button"
-                  >
-                    🗑️ Delete
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
-            ))}
-          </div>
+            ) : null}
+          </>
         )}
       </div>
 

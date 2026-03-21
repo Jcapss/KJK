@@ -22,11 +22,30 @@ type Product = {
   service_type?: string | null;
 };
 
+const ITEMS_PER_PAGE = 20;
+
 function normalizeServiceType(value?: string | null) {
   const v = String(value ?? "").trim().toLowerCase();
   if (v === "solar") return "solar";
   if (v === "cctv") return "cctv";
   return "other";
+}
+
+function formatCategoryLabel(slug?: string | null) {
+  const value = String(slug ?? "").trim();
+  if (!value) return "Uncategorized";
+
+  return value
+    .split("-")
+    .filter(Boolean)
+    .map((part) => {
+      const lower = part.toLowerCase();
+      if (lower === "cpu" || lower === "gpu" || lower === "ssd" || lower === "hdd" || lower === "nvme") {
+        return lower.toUpperCase();
+      }
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
 }
 
 export default function AdminProductsPage() {
@@ -37,6 +56,8 @@ export default function AdminProductsPage() {
 
   const [search, setSearch] = useState("");
   const [activeOnly, setActiveOnly] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const navigate = useNavigate();
 
@@ -85,10 +106,28 @@ export default function AdminProductsPage() {
     fetchProducts();
   }
 
-  const filteredProducts = useMemo(() => {
-    let list = products;
+  const categoryOptions = useMemo(() => {
+    const unique = Array.from(
+      new Set(
+        products
+          .map((p) => String(p.category_slug ?? "").trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
 
-    if (activeOnly) list = list.filter((p) => p.is_active);
+    return unique;
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    let list = [...products];
+
+    if (activeOnly) {
+      list = list.filter((p) => p.is_active);
+    }
+
+    if (categoryFilter !== "all") {
+      list = list.filter((p) => p.category_slug === categoryFilter);
+    }
 
     const q = search.trim().toLowerCase();
     if (q) {
@@ -100,7 +139,25 @@ export default function AdminProductsPage() {
     }
 
     return list;
-  }, [products, search, activeOnly]);
+  }, [products, search, activeOnly, categoryFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE));
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    return filteredProducts.slice(start, end);
+  }, [filteredProducts, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, activeOnly, categoryFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   function priceLabel(v: number | string) {
     const n = Number(v ?? 0);
@@ -131,7 +188,9 @@ export default function AdminProductsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-2xl font-black">Products</div>
-          <div className="text-sm text-black/60">Add, edit, and delete products.</div>
+          <div className="text-sm text-black/60">
+            Add, edit, and delete products.
+          </div>
         </div>
 
         <button
@@ -149,13 +208,26 @@ export default function AdminProductsPage() {
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-3 rounded-2xl border border-black/10 bg-white p-4 sm:grid-cols-[1fr_auto]">
+      <div className="mt-5 grid gap-3 rounded-2xl border border-black/10 bg-white p-4 lg:grid-cols-[1fr_220px_auto]">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by product name, description, category, service type..."
           className="w-full rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
         />
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="w-full rounded-xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+        >
+          <option value="all">All Categories</option>
+          {categoryOptions.map((slug) => (
+            <option key={slug} value={slug}>
+              {formatCategoryLabel(slug)}
+            </option>
+          ))}
+        </select>
 
         <label className="inline-flex items-center gap-2 text-sm text-black/70">
           <input
@@ -165,6 +237,15 @@ export default function AdminProductsPage() {
           />
           Active only
         </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-black/60">
+        <div>
+          Showing {paginatedProducts.length} of {filteredProducts.length} product(s)
+        </div>
+        <div>
+          Page {currentPage} of {totalPages}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-4 md:hidden">
@@ -177,7 +258,7 @@ export default function AdminProductsPage() {
             No products found.
           </div>
         ) : (
-          filteredProducts.map((p) => (
+          paginatedProducts.map((p) => (
             <div
               key={p.id}
               className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm"
@@ -224,7 +305,7 @@ export default function AdminProductsPage() {
 
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
                     <span className="rounded-xl bg-black/5 px-3 py-1 text-xs font-semibold text-black/70">
-                      {String(p.category_slug)}
+                      {formatCategoryLabel(p.category_slug)}
                     </span>
                     <span className="font-semibold">{priceLabel(p.price)}</span>
                     <span className="text-black/60">Stock: {p.stock ?? 0}</span>
@@ -283,7 +364,7 @@ export default function AdminProductsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => (
+                paginatedProducts.map((p) => (
                   <tr key={p.id} className="border-t border-black/10">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -313,7 +394,9 @@ export default function AdminProductsPage() {
                       </div>
                     </td>
 
-                    <td className="px-4 py-3 text-black/70">{p.category_slug}</td>
+                    <td className="px-4 py-3 text-black/70">
+                      {formatCategoryLabel(p.category_slug)}
+                    </td>
 
                     <td className="px-4 py-3 font-semibold">{priceLabel(p.price)}</td>
 
@@ -359,6 +442,45 @@ export default function AdminProductsPage() {
           </table>
         </div>
       </div>
+
+      {!loading && totalPages > 1 ? (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Prev
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              type="button"
+              onClick={() => setCurrentPage(page)}
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                currentPage === page
+                  ? "border-black bg-black text-white"
+                  : "border-black/10 bg-white text-black hover:bg-black/5"
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages}
+            className="rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-4 text-xs text-black/50">
         Tip: If you see empty products here but you have data, check RLS policies for{" "}
