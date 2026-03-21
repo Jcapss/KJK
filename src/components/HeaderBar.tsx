@@ -163,7 +163,7 @@ export default function HeaderBar({
 
             <div className="leading-tight">
               <div className="text-sm font-extrabold tracking-tight">
-                KJK TechShop Computer Store
+                KJK TECHSHOP COMPUTER STORE
               </div>
               <div className="text-xs text-black/60">
                 Parts • Laptops • CCTV • Services
@@ -279,7 +279,7 @@ export default function HeaderBar({
             />
 
             <div className="text-[13px] font-extrabold">
-              KJK TechShop
+            KJK TECHSHOP COMPUTER STORE
             </div>
           </button>
 

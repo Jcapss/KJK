@@ -132,7 +132,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             />
             <div className="leading-tight">
               <div className="text-sm font-extrabold">Admin</div>
-              <div className="text-xs text-black/60">KJK TechShop</div>
+              <div className="text-xs text-black/60">KJK TECHSHOP COMPUTER STORE</div>
             </div>
           </div>
 
